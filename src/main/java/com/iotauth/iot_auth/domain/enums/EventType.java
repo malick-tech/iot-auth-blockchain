@@ -1,4 +1,14 @@
 package com.iotauth.iot_auth.domain.enums;
 
 public enum EventType {
+    DEVICE_REGISTERED,
+    CHALLENGE_CREATED,
+    AUTHENTICATION_SUCCESS,
+    AUTHENTICATION_FAILURE,
+    TOKEN_ISSUED,
+    VP_VERIFIED,
+    VP_RENEWED,
+    DEVICE_SUSPENDED,
+    DEVICE_REVOKED,
+    ANOMALY_DETECTED
 }
