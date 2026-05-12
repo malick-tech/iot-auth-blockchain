@@ -1,4 +1,8 @@
 package com.iotauth.iot_auth.dto.response;
 
-public class ChallengeResponse {
+public record ChallengeResponse(
+        String did,
+        String nonce,
+        long expiresIn
+) {
 }
