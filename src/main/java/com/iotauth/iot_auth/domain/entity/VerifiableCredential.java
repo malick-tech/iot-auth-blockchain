@@ -7,7 +7,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
@@ -36,7 +35,7 @@ public class VerifiableCredential {
     private String credentialId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "device_id", nullable = false)
+    @JoinColumn(name = "device_fk", nullable = false)
     private Device device;
 
     @Column(nullable = false, length = 180)
@@ -45,12 +44,10 @@ public class VerifiableCredential {
     @Column(nullable = false, length = 180)
     private String subject;
 
-    @Lob
-    @Column(name = "claims_json", nullable = false)
+    @Column(name = "claims_json", nullable = false, columnDefinition = "TEXT")
     private String claimsJson;
 
-    @Lob
-    @Column(name = "proof_json")
+    @Column(name = "proof_json", columnDefinition = "TEXT")
     private String proofJson;
 
     @Column(name = "vc_hash", nullable = false, unique = true, length = 128)

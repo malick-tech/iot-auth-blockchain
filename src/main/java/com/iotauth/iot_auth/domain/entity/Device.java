@@ -8,12 +8,12 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.AllArgsConstructor;
@@ -49,8 +49,7 @@ public class Device {
     @Builder.Default
     private DeviceStatus status = DeviceStatus.PENDING;
 
-    @Lob
-    @Column(name = "metadata_json")
+    @Column(name = "metadata_json", columnDefinition = "TEXT")
     private String metadataJson;
 
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -61,6 +60,12 @@ public class Device {
 
     @Column(name = "last_seen_at")
     private Instant lastSeenAt;
+
+    @Column(name = "algorand_tx_id", length = 120)
+    private String algorandTxId;
+
+    @Column(name = "activated_at")
+    private LocalDateTime activatedAt;
 
     @OneToMany(mappedBy = "device")
     @Builder.Default
