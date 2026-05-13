@@ -1,4 +1,4 @@
 package com.iotauth.iot_auth.dto.request;
 
-public class ChallengeResponse {
+public class ChallengeAnswerRequest {
 }
