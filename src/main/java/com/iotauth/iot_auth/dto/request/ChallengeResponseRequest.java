@@ -4,17 +4,11 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 @Data
-public class VPRequest {
+public class ChallengeResponseRequest {
 
     @NotBlank
     private String did;
 
     @NotBlank
-    private String verifiablePresentation;
-
-    @NotBlank
-    private String challenge;
-
-    @NotBlank
-    private String signature;
+    private String signedNonce;
 }
