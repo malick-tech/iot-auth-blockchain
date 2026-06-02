@@ -139,6 +139,22 @@ class RevocationServiceTest {
     }
 
     @Test
+    void revokeDeviceBySerialNumber_whenActive_shouldUseSerialNumberLookup() {
+        Device device = activeDevice();
+        RevocationRequest request = request("Test Postman");
+        when(deviceRepository.findBySerialNumber(device.getSerialNumber())).thenReturn(Optional.of(device));
+        when(algorandService.publishDeviceLifecycleEvent(device.getDid(), "REVOKED", request.getReason()))
+                .thenReturn("tx-revoke");
+        when(deviceRepository.save(any(Device.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DeviceStatusResponse response = service.revokeDeviceBySerialNumber(device.getSerialNumber(), request);
+
+        assertThat(response.getStatus()).isEqualTo(DeviceStatus.REVOKED);
+        verify(deviceRepository).findBySerialNumber("SN-001");
+        verify(redisService).deleteDeviceCache(device.getDid());
+    }
+
+    @Test
     void suspendDevice_whenPending_shouldThrowInvalidDeviceStatusException() {
         Device device = activeDevice();
         device.setStatus(DeviceStatus.PENDING);

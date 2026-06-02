@@ -69,6 +69,12 @@ public class DeviceService {
     }
 
     @Transactional(readOnly = true)
+    public DeviceResponse getDeviceBySerialNumber(String serialNumber) {
+        return toResponse(deviceRepository.findBySerialNumber(serialNumber)
+                .orElseThrow(() -> DeviceNotFoundException.bySerial(serialNumber)));
+    }
+
+    @Transactional(readOnly = true)
     public List<DeviceResponse> getDevicesByStatus(DeviceStatus status) {
         return deviceRepository.findByStatus(status)
                 .stream()

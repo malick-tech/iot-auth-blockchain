@@ -36,7 +36,18 @@ public class RevocationService {
     @Transactional
     public DeviceStatusResponse suspendDevice(String did, RevocationRequest request) {
         Device device = findDeviceByDid(did);
+        return suspendDevice(device, request);
+    }
+
+    @Transactional
+    public DeviceStatusResponse suspendDeviceBySerialNumber(String serialNumber, RevocationRequest request) {
+        Device device = findDeviceBySerialNumber(serialNumber);
+        return suspendDevice(device, request);
+    }
+
+    private DeviceStatusResponse suspendDevice(Device device, RevocationRequest request) {
         ensureNotRevoked(device);
+        String did = device.getDid();
 
         if (device.getStatus() == DeviceStatus.SUSPENDED) {
             throw DeviceSuspendedException.byDid(did);
@@ -68,7 +79,18 @@ public class RevocationService {
     @Transactional
     public DeviceStatusResponse reactivateDevice(String did) {
         Device device = findDeviceByDid(did);
+        return reactivateDevice(device);
+    }
+
+    @Transactional
+    public DeviceStatusResponse reactivateDeviceBySerialNumber(String serialNumber) {
+        Device device = findDeviceBySerialNumber(serialNumber);
+        return reactivateDevice(device);
+    }
+
+    private DeviceStatusResponse reactivateDevice(Device device) {
         ensureNotRevoked(device);
+        String did = device.getDid();
 
         if (device.getStatus() != DeviceStatus.SUSPENDED) {
             throw InvalidDeviceStatusException.expected(DeviceStatus.SUSPENDED, device.getStatus());
@@ -95,6 +117,17 @@ public class RevocationService {
     @Transactional
     public DeviceStatusResponse revokeDevice(String did, RevocationRequest request) {
         Device device = findDeviceByDid(did);
+        return revokeDevice(device, request);
+    }
+
+    @Transactional
+    public DeviceStatusResponse revokeDeviceBySerialNumber(String serialNumber, RevocationRequest request) {
+        Device device = findDeviceBySerialNumber(serialNumber);
+        return revokeDevice(device, request);
+    }
+
+    private DeviceStatusResponse revokeDevice(Device device, RevocationRequest request) {
+        String did = device.getDid();
         if (device.getStatus() == DeviceStatus.REVOKED) {
             throw DeviceRevokedException.byDid(did);
         }
@@ -124,9 +157,19 @@ public class RevocationService {
         return toStatusResponse(findDeviceByDid(did));
     }
 
+    @Transactional(readOnly = true)
+    public DeviceStatusResponse getDeviceStatusBySerialNumber(String serialNumber) {
+        return toStatusResponse(findDeviceBySerialNumber(serialNumber));
+    }
+
     private Device findDeviceByDid(String did) {
         return deviceRepository.findByDid(did)
                 .orElseThrow(() -> DeviceNotFoundException.byDid(did));
+    }
+
+    private Device findDeviceBySerialNumber(String serialNumber) {
+        return deviceRepository.findBySerialNumber(serialNumber)
+                .orElseThrow(() -> DeviceNotFoundException.bySerial(serialNumber));
     }
 
     private void ensureNotRevoked(Device device) {
