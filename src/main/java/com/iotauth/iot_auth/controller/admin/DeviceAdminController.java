@@ -44,4 +44,9 @@ public class DeviceAdminController {
     public DeviceResponse getDeviceById(@PathVariable Long id) {
         return deviceService.getDeviceById(id);
     }
+
+    @GetMapping(path = "/serial/{serialNumber}")
+    public DeviceResponse getDeviceBySerialNumber(@PathVariable String serialNumber) {
+        return deviceService.getDeviceBySerialNumber(serialNumber);
+    }
 }
