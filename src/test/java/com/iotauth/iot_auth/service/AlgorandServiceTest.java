@@ -16,4 +16,14 @@ class AlgorandServiceTest {
         assertThat(txId).startsWith("tx-");
         assertThat(txId.length()).isGreaterThan(3);
     }
+
+    @Test
+    void publishDeviceLifecycleEvent_shouldReturnTransactionId() {
+        AlgorandService service = new AlgorandService();
+
+        String txId = service.publishDeviceLifecycleEvent("did:algo:ABC", "REVOKED", "test");
+
+        assertThat(txId).isNotNull();
+        assertThat(txId).startsWith("tx-");
+    }
 }
