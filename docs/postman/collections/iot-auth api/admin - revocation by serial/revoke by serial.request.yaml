@@ -1,0 +1,26 @@
+$kind: http-request
+name: 'Revoke by serial number'
+method: PATCH
+url: '{{base_url}}/api/admin/devices/serial/:serialNumber/revoke'
+order: 4000
+headers:
+  - key: Content-Type
+    value: 'application/json'
+  - key: Accept
+    value: 'application/json'
+pathVariables:
+  - key: serialNumber
+    value: '{{serial_number}}'
+body:
+  type: json
+  content: |-
+    {
+      "reason": "{{revoke_reason}}"
+    }
+scripts:
+  - type: afterResponse
+    language: 'text/javascript'
+    code: |-
+      pm.test('Status code is 200', () => pm.response.to.have.status(200));
+      const json = pm.response.json();
+      pm.test('Device is revoked', () => pm.expect(json.revoked).to.eql(true));

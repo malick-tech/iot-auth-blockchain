@@ -1,0 +1,18 @@
+$kind: http-request
+name: 'Get status by DID'
+method: GET
+url: '{{base_url}}/api/admin/devices/:did/status'
+order: 1000
+headers:
+  - key: Accept
+    value: 'application/json'
+pathVariables:
+  - key: did
+    value: '{{did}}'
+scripts:
+  - type: afterResponse
+    language: 'text/javascript'
+    code: |-
+      pm.test('Status code is 200', () => pm.response.to.have.status(200));
+      const json = pm.response.json();
+      pm.test('Status fields are present', () => ['did','status','active','suspended','revoked'].forEach(k => pm.expect(json).to.have.property(k)));

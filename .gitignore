@@ -1,5 +1,6 @@
 # Maven
 target/
+backend/target/
 *.class
 *.jar
 
@@ -8,6 +9,18 @@ target/
 *.iml
 *.iws
 *.ipr
+
+# VS Code
+.vscode/
+
+# Local reference projects
+spring-petclinic/
+
+# Local/generated workspace copies kept at root during migration
+/postman/
+/.postman/
+/*.docx
+/read_docx.py
 
 # Secrets (NE JAMAIS pousser)
 application-prod.yml

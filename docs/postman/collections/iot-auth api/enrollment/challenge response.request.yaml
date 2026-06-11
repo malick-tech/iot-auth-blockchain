@@ -1,0 +1,26 @@
+$kind: http-request
+name: 'Challenge response'
+method: POST
+url: '{{base_url}}/api/enrollment/challenge-response'
+order: 2000
+headers:
+  - key: Content-Type
+    value: 'application/json'
+  - key: Accept
+    value: 'application/json'
+body:
+  type: json
+  content: |-
+    {
+      "did": "{{did}}",
+      "signedNonce": "{{signed_nonce}}"
+    }
+scripts:
+  - type: afterResponse
+    language: 'text/javascript'
+    code: |-
+      pm.test('Status code is 200', () => pm.response.to.have.status(200));
+      const json = pm.response.json();
+      pm.test('JWT fields are present', () => ['jwt','tokenType','did','expiresIn','expiresAt'].forEach(k => pm.expect(json).to.have.property(k)));
+      if (json.jwt) pm.environment.set('jwt_pop', json.jwt);
+      if (json.did) pm.environment.set('did', json.did);

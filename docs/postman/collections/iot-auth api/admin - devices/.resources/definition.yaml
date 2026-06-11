@@ -1,0 +1,5 @@
+$kind: collection
+name: 'Admin / Devices'
+description: |-
+  Pré-enregistrement et consultation des dispositifs.
+order: 2000

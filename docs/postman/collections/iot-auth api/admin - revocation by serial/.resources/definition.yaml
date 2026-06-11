@@ -1,0 +1,5 @@
+$kind: collection
+name: 'Admin / Revocation by Serial'
+description: |-
+  Statut, suspension, réactivation et révocation par numéro de série.
+order: 4000
