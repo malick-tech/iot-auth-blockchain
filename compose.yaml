@@ -47,6 +47,20 @@ services:
     depends_on:
       - redis
 
+  nodered:
+    image: nodered/node-red:4.0
+    environment:
+      - TZ=Africa/Dakar
+      - BACKEND_BASE_URL=http://host.docker.internal:8080
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - '1880:1880'
+    volumes:
+      - ./gateway/nodered/data:/data
+    depends_on:
+      - redis
+
 volumes:
   postgres-data:
   redis-data:

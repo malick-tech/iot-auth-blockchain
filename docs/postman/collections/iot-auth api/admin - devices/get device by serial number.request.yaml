@@ -1,0 +1,20 @@
+$kind: http-request
+name: 'Get device by serial number'
+method: GET
+url: '{{base_url}}/api/admin/devices/serial/:serialNumber'
+order: 4000
+headers:
+  - key: Accept
+    value: 'application/json'
+pathVariables:
+  - key: serialNumber
+    value: '{{serial_number}}'
+scripts:
+  - type: afterResponse
+    language: 'text/javascript'
+    code: |-
+      pm.test('Status code is 200', () => pm.response.to.have.status(200));
+      const json = pm.response.json();
+      pm.test('Serial number matches variable', () => pm.expect(json.serialNumber).to.eql(pm.variables.get('serial_number')));
+      if (json.id) pm.environment.set('device_id', String(json.id));
+      if (json.did) pm.environment.set('did', json.did);

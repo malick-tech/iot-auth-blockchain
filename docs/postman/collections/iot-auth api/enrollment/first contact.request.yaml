@@ -1,0 +1,28 @@
+$kind: http-request
+name: 'First contact'
+method: POST
+url: '{{base_url}}/api/enrollment/first-contact'
+order: 1000
+headers:
+  - key: Content-Type
+    value: 'application/json'
+  - key: Accept
+    value: 'application/json'
+body:
+  type: json
+  content: |-
+    {
+      "serialNumber": "{{serial_number}}",
+      "did": "{{did}}",
+      "publicKey": "{{public_key}}",
+      "signature": "{{signature_sigma0}}"
+    }
+scripts:
+  - type: afterResponse
+    language: 'text/javascript'
+    code: |-
+      pm.test('Status code is 200', () => pm.response.to.have.status(200));
+      const json = pm.response.json();
+      pm.test('Challenge fields are present', () => ['nonce','did','expiresIn'].forEach(k => pm.expect(json).to.have.property(k)));
+      if (json.nonce) pm.environment.set('nonce', json.nonce);
+      if (json.did) pm.environment.set('did', json.did);
