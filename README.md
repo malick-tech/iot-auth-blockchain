@@ -8,11 +8,12 @@ Projet de mémoire pour l'authentification sécurisée des dispositifs IoT avec 
 - `frontend/` : console d'administration React/Vite pour piloter les dispositifs, consulter l'état système et lire les journaux d'audit.
 - `gateway/` : gateway Node-RED et scripts de test pour les flux opérationnels IoT.
 - `smart-contract/` : contrat Algorand utilisé pour publier et résoudre les DID sur LocalNet.
-- `compose.yaml` : PostgreSQL, Redis, pgAdmin, Redis Commander et Node-RED.
+- `backend/compose.yaml` : PostgreSQL, Redis, pgAdmin, Redis Commander et Node-RED.
 
 ## Services Locaux
 
 ```powershell
+cd backend
 docker compose up -d
 ```
 
@@ -34,6 +35,7 @@ Ports utiles :
 1. Démarrer les services Docker :
 
 ```powershell
+cd backend
 docker compose up -d
 ```
 
@@ -47,7 +49,7 @@ algokit localnet status
 
 ```powershell
 cd backend
-.\mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=dev
+.\mvnw.cmd spring-boot:run
 ```
 
 4. Démarrer le frontend :
