@@ -10,7 +10,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
-public interface AuthLogRepository extends JpaRepository<AuthLog, Long> {
+public interface AuthLogRepository extends JpaRepository<AuthLog, Long>,
+        org.springframework.data.jpa.repository.JpaSpecificationExecutor<AuthLog> {
 
     List<AuthLog> findByDeviceDid(String deviceDid);
 

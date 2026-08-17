@@ -1,0 +1,528 @@
+#pragma version 8
+txn ApplicationID
+int 0
+==
+bnz main_l100
+txn OnCompletion
+int DeleteApplication
+==
+bnz main_l99
+txn OnCompletion
+int UpdateApplication
+==
+bnz main_l98
+txna ApplicationArgs 0
+byte "PUBLISH_DID"
+==
+bnz main_l54
+txna ApplicationArgs 0
+byte "UPDATE_STATUS"
+==
+bnz main_l53
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l9
+txna ApplicationArgs 0
+method "update_status(byte[32],uint8)void"
+==
+bnz main_l8
+err
+main_l8:
+txn Sender
+byte "admin"
+app_global_get
+==
+assert
+txn NumAppArgs
+int 3
+==
+assert
+txna ApplicationArgs 1
+len
+int 32
+==
+assert
+txna ApplicationArgs 2
+len
+int 1
+==
+assert
+txna ApplicationArgs 1
+box_len
+store 5
+store 4
+load 5
+assert
+txna ApplicationArgs 1
+int 16
+txna ApplicationArgs 2
+box_replace
+int 1
+return
+main_l9:
+txn Sender
+byte "admin"
+app_global_get
+==
+assert
+txn NumAppArgs
+int 4
+==
+assert
+txna ApplicationArgs 1
+len
+int 32
+==
+assert
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l52
+txna ApplicationArgs 2
+main_l11:
+len
+int 8
+==
+assert
+txna ApplicationArgs 1
+box_len
+store 1
+store 0
+load 1
+bnz main_l51
+main_l12:
+txna ApplicationArgs 1
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l50
+txna ApplicationArgs 2
+main_l14:
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l49
+txna ApplicationArgs 2
+main_l16:
+concat
+byte 0x01
+concat
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l48
+txna ApplicationArgs 3
+main_l18:
+len
+itob
+concat
+len
+box_create
+assert
+txna ApplicationArgs 1
+int 0
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l47
+txna ApplicationArgs 2
+main_l20:
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l46
+txna ApplicationArgs 2
+main_l22:
+concat
+byte 0x01
+concat
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l45
+txna ApplicationArgs 3
+main_l24:
+len
+itob
+concat
+box_replace
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l44
+txna ApplicationArgs 2
+main_l26:
+box_len
+store 3
+store 2
+load 3
+bnz main_l40
+main_l27:
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l39
+txna ApplicationArgs 2
+main_l29:
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l38
+txna ApplicationArgs 3
+main_l31:
+len
+box_create
+assert
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l37
+txna ApplicationArgs 2
+main_l33:
+int 0
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l36
+txna ApplicationArgs 3
+main_l35:
+box_replace
+int 1
+return
+main_l36:
+txna ApplicationArgs 3
+int 2
+txna ApplicationArgs 3
+len
+int 2
+-
+extract3
+b main_l35
+main_l37:
+txna ApplicationArgs 2
+b main_l33
+main_l38:
+txna ApplicationArgs 3
+int 2
+txna ApplicationArgs 3
+len
+int 2
+-
+extract3
+b main_l31
+main_l39:
+txna ApplicationArgs 2
+b main_l29
+main_l40:
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l43
+txna ApplicationArgs 2
+main_l42:
+box_del
+pop
+b main_l27
+main_l43:
+txna ApplicationArgs 2
+b main_l42
+main_l44:
+txna ApplicationArgs 2
+b main_l26
+main_l45:
+txna ApplicationArgs 3
+int 2
+txna ApplicationArgs 3
+len
+int 2
+-
+extract3
+b main_l24
+main_l46:
+txna ApplicationArgs 2
+b main_l22
+main_l47:
+txna ApplicationArgs 2
+b main_l20
+main_l48:
+txna ApplicationArgs 3
+int 2
+txna ApplicationArgs 3
+len
+int 2
+-
+extract3
+b main_l18
+main_l49:
+txna ApplicationArgs 2
+b main_l16
+main_l50:
+txna ApplicationArgs 2
+b main_l14
+main_l51:
+txna ApplicationArgs 1
+box_del
+pop
+b main_l12
+main_l52:
+txna ApplicationArgs 2
+b main_l11
+main_l53:
+txn Sender
+byte "admin"
+app_global_get
+==
+assert
+txn NumAppArgs
+int 3
+==
+assert
+txna ApplicationArgs 1
+len
+int 32
+==
+assert
+txna ApplicationArgs 2
+len
+int 1
+==
+assert
+txna ApplicationArgs 1
+box_len
+store 5
+store 4
+load 5
+assert
+txna ApplicationArgs 1
+int 16
+txna ApplicationArgs 2
+box_replace
+int 1
+return
+main_l54:
+txn Sender
+byte "admin"
+app_global_get
+==
+assert
+txn NumAppArgs
+int 4
+==
+assert
+txna ApplicationArgs 1
+len
+int 32
+==
+assert
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l97
+txna ApplicationArgs 2
+main_l56:
+len
+int 8
+==
+assert
+txna ApplicationArgs 1
+box_len
+store 1
+store 0
+load 1
+bnz main_l96
+main_l57:
+txna ApplicationArgs 1
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l95
+txna ApplicationArgs 2
+main_l59:
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l94
+txna ApplicationArgs 2
+main_l61:
+concat
+byte 0x01
+concat
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l93
+txna ApplicationArgs 3
+main_l63:
+len
+itob
+concat
+len
+box_create
+assert
+txna ApplicationArgs 1
+int 0
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l92
+txna ApplicationArgs 2
+main_l65:
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l91
+txna ApplicationArgs 2
+main_l67:
+concat
+byte 0x01
+concat
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l90
+txna ApplicationArgs 3
+main_l69:
+len
+itob
+concat
+box_replace
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l89
+txna ApplicationArgs 2
+main_l71:
+box_len
+store 3
+store 2
+load 3
+bnz main_l85
+main_l72:
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l84
+txna ApplicationArgs 2
+main_l74:
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l83
+txna ApplicationArgs 3
+main_l76:
+len
+box_create
+assert
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l82
+txna ApplicationArgs 2
+main_l78:
+int 0
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l81
+txna ApplicationArgs 3
+main_l80:
+box_replace
+int 1
+return
+main_l81:
+txna ApplicationArgs 3
+int 2
+txna ApplicationArgs 3
+len
+int 2
+-
+extract3
+b main_l80
+main_l82:
+txna ApplicationArgs 2
+b main_l78
+main_l83:
+txna ApplicationArgs 3
+int 2
+txna ApplicationArgs 3
+len
+int 2
+-
+extract3
+b main_l76
+main_l84:
+txna ApplicationArgs 2
+b main_l74
+main_l85:
+txna ApplicationArgs 0
+method "publish_did(byte[32],uint64,string)void"
+==
+bnz main_l88
+txna ApplicationArgs 2
+main_l87:
+box_del
+pop
+b main_l72
+main_l88:
+txna ApplicationArgs 2
+b main_l87
+main_l89:
+txna ApplicationArgs 2
+b main_l71
+main_l90:
+txna ApplicationArgs 3
+int 2
+txna ApplicationArgs 3
+len
+int 2
+-
+extract3
+b main_l69
+main_l91:
+txna ApplicationArgs 2
+b main_l67
+main_l92:
+txna ApplicationArgs 2
+b main_l65
+main_l93:
+txna ApplicationArgs 3
+int 2
+txna ApplicationArgs 3
+len
+int 2
+-
+extract3
+b main_l63
+main_l94:
+txna ApplicationArgs 2
+b main_l61
+main_l95:
+txna ApplicationArgs 2
+b main_l59
+main_l96:
+txna ApplicationArgs 1
+box_del
+pop
+b main_l57
+main_l97:
+txna ApplicationArgs 2
+b main_l56
+main_l98:
+txn Sender
+byte "admin"
+app_global_get
+==
+return
+main_l99:
+txn Sender
+byte "admin"
+app_global_get
+==
+return
+main_l100:
+byte "admin"
+txn Sender
+app_global_put
+int 1
+return

@@ -1,0 +1,11 @@
+{
+    "name": "node-red-project",
+    "description": "A Node-RED Project",
+    "version": "0.0.1",
+    "private": true,
+    "dependencies": {
+        "ioredis": "^5.11.1",
+        "node-red-contrib-redis": "~1.4.0",
+        "tweetnacl": "^1.0.3"
+    }
+}

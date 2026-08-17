@@ -22,7 +22,9 @@ public class DeviceResponse {
     private String responsible;
     private LocalDateTime activatedAt;
     private LocalDateTime suspendedAt;
+    private String suspensionReason;
     private LocalDateTime revokedAt;
+    private String revocationReason;
     private LocalDateTime lastSeenAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

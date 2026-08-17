@@ -19,12 +19,11 @@ import com.iotauth.iot_auth.util.CryptoUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.Base64;
 
 @Slf4j
 @Service
@@ -38,6 +37,8 @@ public class EnrollmentService {
     private final VcService vcService;
     private final AuditLogService auditLogService;
     private final AnomalyDetectionService anomalyService;
+    @Autowired(required = false)
+    private AdminKeyService adminKeyService;
 
     @Value("${iot.auth.nonce-ttl-seconds:60}")
     private long nonceTtl;
@@ -45,7 +46,11 @@ public class EnrollmentService {
     @Value("${iot.auth.redis-ttl-seconds:300}")
     private long redisTtl;
 
-    private final SecureRandom secureRandom = new SecureRandom();
+    @Value("${iot.auth.algorand.app-id}")
+    private long algorandAppId;
+
+    @Value("${iot.auth.algorand.network:mainnet}")
+    private String algorandNetwork;
 
     @Transactional
     public ChallengeResponse handleFirstContact(FirstContactRequest request) {
@@ -69,7 +74,7 @@ public class EnrollmentService {
             throw InvalidDeviceStatusException.expected(DeviceStatus.PENDING, device.getStatus());
         }
 
-        if (!CryptoUtils.validateDidFormat(request.getDid(), request.getPublicKey())) {
+        if (!CryptoUtils.validateDidFormat(request.getDid(), request.getPublicKey(), algorandAppId, algorandNetwork)) {
             auditFirstContactRejected(request, "DID incoherent avec la cle publique");
             throw new InvalidSignatureException("DID incoherent avec la cle publique : " + request.getDid());
         }
@@ -98,7 +103,7 @@ public class EnrollmentService {
         device.setLastSeenAt(LocalDateTime.now());
         deviceRepository.save(device);
 
-        String nonce = generateNonce();
+        String nonce = CryptoUtils.generateNonce();
         redisService.saveNonce(request.getDid(), nonce, nonceTtl);
 
         auditLogService.record(
@@ -192,16 +197,15 @@ public class EnrollmentService {
         device.setLastSeenAt(now);
         deviceRepository.save(device);
 
-        redisService.saveDeviceCache(
-                device.getDid(),
-                device.getPublicKey(),
-                vc.getPermissions(),
-                redisTtl
-        );
+        saveDeviceCacheForGateway(device, vc.getPermissions());
 
         anomalyService.resetChallengeFailures(device.getDid());
 
         JwtPopResponse jwt = jwtService.generateJwtPop(device.getDid(), device.getPublicKey());
+        jwt.setPermissions(vc.getPermissions());
+        jwt.setCredentialId(vc.getVcId());
+        jwt.setVerifiableCredential(vc.getRawCredential());
+        jwt.setDeviceSerialNumber(device.getSerialNumber());
         auditLogService.record(
                 EventType.DEVICE_ACTIVATED,
                 device.getDid(),
@@ -221,15 +225,27 @@ public class EnrollmentService {
         return jwt;
     }
 
-    private String generateNonce() {
-        byte[] bytes = new byte[32];
-        secureRandom.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
-
     private String buildMetadata(Device device) {
         return String.format(
-                "{\"type\":\"%s\",\"location\":\"%s\",\"group\":\"%s\",\"serial\":\"%s\"}",
+                "{\"@context\":[\"https://www.w3.org/ns/did/v1\"],"
+                        + "\"id\":\"%s\","
+                        + "\"publicKey\":\"%s\","
+                        + "\"verificationMethod\":[{\"id\":\"%s#key-1\",\"type\":\"Ed25519VerificationKey2020\","
+                        + "\"controller\":\"%s\",\"publicKeyBase32\":\"%s\"}],"
+                        + "\"authentication\":[\"%s#key-1\"],"
+                        + "\"assertionMethod\":[\"%s#key-1\"],"
+                        + "\"service\":[{\"id\":\"%s#metadata\",\"type\":\"IoTDeviceMetadata\","
+                        + "\"serviceEndpoint\":\"urn:iot-auth:device:%s\","
+                        + "\"metadata\":{\"type\":\"%s\",\"location\":\"%s\",\"group\":\"%s\",\"serial\":\"%s\"}}]}",
+                safeMetadataValue(device.getDid()),
+                safeMetadataValue(device.getPublicKey()),
+                safeMetadataValue(device.getDid()),
+                safeMetadataValue(device.getDid()),
+                safeMetadataValue(device.getPublicKey()),
+                safeMetadataValue(device.getDid()),
+                safeMetadataValue(device.getDid()),
+                safeMetadataValue(device.getDid()),
+                safeMetadataValue(device.getSerialNumber()),
                 safeMetadataValue(device.getDeviceType()),
                 safeMetadataValue(device.getLocation()),
                 safeMetadataValue(device.getLogicalGroup()),
@@ -242,6 +258,30 @@ public class EnrollmentService {
             return "";
         }
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private String issuerPublicKey() {
+        return adminKeyService != null ? adminKeyService.getPublicKeyBase32() : null;
+    }
+
+    private String issuerDid() {
+        return adminKeyService != null ? adminKeyService.getAdminDid() : null;
+    }
+
+    private void saveDeviceCacheForGateway(Device device, java.util.List<String> permissions) {
+        if (adminKeyService == null) {
+            redisService.saveDeviceCache(device.getDid(), device.getPublicKey(), permissions, redisTtl);
+            return;
+        }
+
+        redisService.saveDeviceCache(
+                device.getDid(),
+                device.getPublicKey(),
+                permissions,
+                issuerPublicKey(),
+                issuerDid(),
+                redisTtl
+        );
     }
 
     private void auditFirstContactRejected(FirstContactRequest request, String reason) {

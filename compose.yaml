@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: iot_auth_db
       POSTGRES_USER: malick
-      POSTGRES_PASSWORD: 1234
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-1234}
     ports:
       - '5432:5432'
     volumes:
@@ -31,7 +31,7 @@ services:
     image: dpage/pgadmin4:8.4
     environment:
       PGADMIN_DEFAULT_EMAIL: malickass1998@gmail.com
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
     ports:
       - '5050:80'
     depends_on:
@@ -51,13 +51,14 @@ services:
     image: nodered/node-red:4.0
     environment:
       - TZ=Africa/Dakar
-      - BACKEND_BASE_URL=http://host.docker.internal:8080
+      - BACKEND_BASE_URL=http://host.docker.internal:8083
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - GATEWAY_SHARED_SECRET=${IOT_AUTH_GATEWAY_SHARED_SECRET:-dev-gateway-secret}
     ports:
       - '1880:1880'
     volumes:
-      - ./gateway/nodered/data:/data
+      - ./gateway/node-red-data:/data
     depends_on:
       - redis
 

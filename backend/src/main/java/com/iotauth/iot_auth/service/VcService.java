@@ -54,6 +54,33 @@ public class VcService {
                 .max(Comparator.comparing(VerifiableCredential::getIssuedAt));
     }
 
+    /**
+     * Vérifie Verify(Kpub_admin, VC) : reconstruit le contenu non signé
+     * (proof.proofValue vidé, exactement comme au moment de la signature)
+     * et vérifie la signature Ed25519 de l'Issuer avec sa clé publique.
+     */
+    public boolean verifyIssuerSignature(String rawCredential) {
+        try {
+            ObjectNode root = (ObjectNode) objectMapper.readTree(rawCredential);
+            ObjectNode proof = (ObjectNode) root.get("proof");
+            if (proof == null || proof.get("proofValue") == null) {
+                return false;
+            }
+            String proofValue = proof.get("proofValue").asText();
+
+            proof.put("proofValue", "");
+            String unsignedCredential = serialize(root);
+
+            return com.iotauth.iot_auth.util.CryptoUtils.verifyEd25519(
+                    adminKeyService.getPublicKeyBase32(),
+                    unsignedCredential,
+                    proofValue
+            );
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private List<String> derivePermissions(Device device) {
         if (device.getLogicalGroup() == null || device.getLogicalGroup().isBlank()) {
             return List.of("device:operate", "device:read");

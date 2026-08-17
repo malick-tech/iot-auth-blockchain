@@ -7,7 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.security.SecureRandom;
 import java.util.Base64;
 
 @Slf4j
@@ -16,31 +15,39 @@ import java.util.Base64;
 public class AdminKeyService {
 
     private final String adminPrivateKeyBase64;
+    private final long algorandAppId;
+    private final String algorandNetwork;
 
     private byte[] privateKeyBytes;
     private byte[] publicKeyBytes;
     private String publicKeyBase32;
     private String adminDid;
 
-    public AdminKeyService(@Value("${iot.auth.admin-private-key-base64:}") String adminPrivateKeyBase64) {
+    public AdminKeyService(
+            @Value("${iot.auth.admin-private-key-base64:}") String adminPrivateKeyBase64,
+            @Value("${iot.auth.algorand.app-id}") long algorandAppId,
+            @Value("${iot.auth.algorand.network:mainnet}") String algorandNetwork
+    ) {
         this.adminPrivateKeyBase64 = adminPrivateKeyBase64;
+        this.algorandAppId = algorandAppId;
+        this.algorandNetwork = algorandNetwork;
     }
 
     @PostConstruct
     private void init() {
         if (adminPrivateKeyBase64 == null || adminPrivateKeyBase64.isBlank()) {
-            log.warn("Aucune clé privée Admin fournie, génération d'une clé éphémère en mémoire.");
+            log.warn("Aucune cle privee Admin fournie, generation d'une cle ephemere en memoire.");
             this.privateKeyBytes = CryptoUtils.generateEd25519PrivateKeyBytes();
         } else {
             this.privateKeyBytes = Base64.getDecoder().decode(adminPrivateKeyBase64.trim());
             if (this.privateKeyBytes.length != 32) {
-                throw new IllegalStateException("La clé privée Admin doit contenir exactement 32 octets Base64.");
+                throw new IllegalStateException("La cle privee Admin doit contenir exactement 32 octets Base64.");
             }
         }
         this.publicKeyBytes = CryptoUtils.deriveEd25519PublicKeyBytes(this.privateKeyBytes);
         this.publicKeyBase32 = CryptoUtils.encodeBase32(this.publicKeyBytes);
-        this.adminDid = CryptoUtils.buildDid(this.publicKeyBase32);
-        log.info("Admin DID initialisé : {}", this.adminDid);
+        this.adminDid = CryptoUtils.buildDid(this.publicKeyBase32, algorandAppId, algorandNetwork);
+        log.info("Admin DID initialise : {}", this.adminDid);
     }
 
     public String sign(String payload) {

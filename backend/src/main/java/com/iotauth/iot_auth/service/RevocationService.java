@@ -1,4 +1,4 @@
-package com.iotauth.iot_auth.service;
+﻿package com.iotauth.iot_auth.service;
 
 import com.iotauth.iot_auth.domain.entity.Device;
 import com.iotauth.iot_auth.domain.entity.VerifiableCredential;
@@ -13,6 +13,7 @@ import com.iotauth.iot_auth.exception.DeviceSuspendedException;
 import com.iotauth.iot_auth.exception.InvalidDeviceStatusException;
 import com.iotauth.iot_auth.repository.DeviceRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +30,8 @@ public class RevocationService {
     private final AlgorandService algorandService;
     private final AuditLogService auditLogService;
     private final VcService vcService;
+    @Autowired(required = false)
+    private AdminKeyService adminKeyService;
 
     @Value("${iot.auth.redis-ttl-seconds:300}")
     private long redisTtl;
@@ -46,22 +49,16 @@ public class RevocationService {
     }
 
     private DeviceStatusResponse suspendDevice(Device device, RevocationRequest request) {
-        ensureNotRevoked(device);
+        validateStatusTransition(device, DeviceStatus.SUSPENDED);
         String did = device.getDid();
 
-        if (device.getStatus() == DeviceStatus.SUSPENDED) {
-            throw DeviceSuspendedException.byDid(did);
-        }
-        if (device.getStatus() != DeviceStatus.ACTIVE) {
-            throw InvalidDeviceStatusException.expected(DeviceStatus.ACTIVE, device.getStatus());
-        }
-
-        String txId = algorandService.publishDeviceLifecycleEvent(did, DeviceStatus.SUSPENDED.name(), request.getReason());
+        // Pas de transaction Algorand ici : la suspension est rÃ©versible,
+        // PostgreSQL en est la source de vÃ©ritÃ©. Le DID reste ACTIVE on-chain
+        // pendant toute la durÃ©e de la suspension (cf. rÃ©activation).
         LocalDateTime now = LocalDateTime.now();
         device.setStatus(DeviceStatus.SUSPENDED);
         device.setSuspendedAt(now);
         device.setSuspensionReason(request.getReason());
-        device.setAlgorandTxId(txId);
         Device savedDevice = deviceRepository.save(device);
 
         redisService.deleteDeviceCache(did);
@@ -70,7 +67,9 @@ public class RevocationService {
                 did,
                 ActorType.ADMIN,
                 true,
-                "Suspension du dispositif : " + request.getReason()
+                "Suspension du dispositif : " + request.getReason(),
+                "{\"reason\":\"" + jsonEscape(request.getReason()) + "\",\"targetStatus\":\"SUSPENDED\",\"redisAction\":\"DEL device\"}",
+                null
         );
 
         return toStatusResponse(savedDevice);
@@ -89,26 +88,33 @@ public class RevocationService {
     }
 
     private DeviceStatusResponse reactivateDevice(Device device) {
-        ensureNotRevoked(device);
+        validateStatusTransition(device, DeviceStatus.ACTIVE);
         String did = device.getDid();
 
-        if (device.getStatus() != DeviceStatus.SUSPENDED) {
-            throw InvalidDeviceStatusException.expected(DeviceStatus.SUSPENDED, device.getStatus());
-        }
-
-        String txId = algorandService.publishDeviceLifecycleEvent(did, DeviceStatus.ACTIVE.name(), "Reactivation");
+        // Pas de transaction Algorand ici : le DID est restÃ© ACTIVE on-chain
+        // pendant toute la durÃ©e de la suspension (cf. suspendDevice), donc
+        // aucune republication n'est nÃ©cessaire ni cohÃ©rente avec ce principe.
         device.setStatus(DeviceStatus.ACTIVE);
-        device.setAlgorandTxId(txId);
         device.setSuspensionReason(null);
         Device savedDevice = deviceRepository.save(device);
 
         restoreActiveDeviceCache(savedDevice);
+
+        // Remise Ã  zÃ©ro des compteurs d'anomalies : une rÃ©activation doit
+        // repartir sur une fenÃªtre de dÃ©tection propre, sans hÃ©riter des
+        // Ã©checs qui ont provoquÃ© la suspension automatique.
+        redisService.resetFailures(did, "challenge");
+        redisService.resetFailures(did, "vp");
+        redisService.resetFailures(did, "perm");
+
         auditLogService.record(
                 EventType.DEVICE_REACTIVATED,
                 did,
                 ActorType.ADMIN,
                 true,
-                "Reactivation du dispositif"
+                "RÃ©activation du dispositif",
+                "{\"targetStatus\":\"ACTIVE\",\"redisAction\":\"RESTORE device\",\"resetFailureCounters\":true}",
+                null
         );
 
         return toStatusResponse(savedDevice);
@@ -146,7 +152,10 @@ public class RevocationService {
                 did,
                 ActorType.ADMIN,
                 true,
-                "Revocation du dispositif : " + request.getReason()
+                "RÃ©vocation du dispositif : " + request.getReason(),
+                "{\"reason\":\"" + jsonEscape(request.getReason()) + "\",\"targetStatus\":\"REVOKED\",\"algorandTxId\":\""
+                        + jsonEscape(txId) + "\",\"redisAction\":\"DEL device\"}",
+                null
         );
 
         return toStatusResponse(savedDevice);
@@ -172,9 +181,20 @@ public class RevocationService {
                 .orElseThrow(() -> DeviceNotFoundException.bySerial(serialNumber));
     }
 
-    private void ensureNotRevoked(Device device) {
+    private void validateStatusTransition(Device device, DeviceStatus targetStatus) {
         if (device.getStatus() == DeviceStatus.REVOKED) {
             throw DeviceRevokedException.byDid(device.getDid());
+        }
+
+        if (targetStatus == DeviceStatus.SUSPENDED) {
+            if (device.getStatus() == DeviceStatus.SUSPENDED) throw DeviceSuspendedException.byDid(device.getDid());
+            if (device.getStatus() != DeviceStatus.ACTIVE) {
+                throw InvalidDeviceStatusException.expected(DeviceStatus.ACTIVE, device.getStatus());
+            }
+        } else if (targetStatus == DeviceStatus.ACTIVE) {
+            if (device.getStatus() != DeviceStatus.SUSPENDED) {
+                throw InvalidDeviceStatusException.expected(DeviceStatus.SUSPENDED, device.getStatus());
+            }
         }
     }
 
@@ -182,13 +202,34 @@ public class RevocationService {
         List<String> permissions = vcService.findLatestValidCredential(device.getDid())
                 .map(VerifiableCredential::getPermissions)
                 .orElse(List.of());
+        if (adminKeyService == null) {
+            redisService.saveDeviceCache(
+                    device.getDid(),
+                    device.getPublicKey(),
+                    DeviceStatus.ACTIVE.name(),
+                    permissions,
+                    redisTtl
+            );
+            return;
+        }
+
         redisService.saveDeviceCache(
                 device.getDid(),
                 device.getPublicKey(),
                 DeviceStatus.ACTIVE.name(),
                 permissions,
+                issuerPublicKey(),
+                issuerDid(),
                 redisTtl
         );
+    }
+
+    private String issuerPublicKey() {
+        return adminKeyService != null ? adminKeyService.getPublicKeyBase32() : null;
+    }
+
+    private String issuerDid() {
+        return adminKeyService != null ? adminKeyService.getAdminDid() : null;
     }
 
     private DeviceStatusResponse toStatusResponse(Device device) {
@@ -201,5 +242,16 @@ public class RevocationService {
                 .algorandTxId(device.getAlgorandTxId())
                 .lastSeenAt(device.getLastSeenAt())
                 .build();
+    }
+
+    private String jsonEscape(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r");
     }
 }

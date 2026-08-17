@@ -23,6 +23,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -65,8 +66,6 @@ class RevocationServiceTest {
         Device device = activeDevice();
         RevocationRequest request = request("Maintenance securite");
         when(deviceRepository.findByDid(device.getDid())).thenReturn(Optional.of(device));
-        when(algorandService.publishDeviceLifecycleEvent(device.getDid(), "SUSPENDED", request.getReason()))
-                .thenReturn("tx-suspend");
         when(deviceRepository.save(any(Device.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         DeviceStatusResponse response = service.suspendDevice(device.getDid(), request);
@@ -74,14 +73,17 @@ class RevocationServiceTest {
         assertThat(response.getStatus()).isEqualTo(DeviceStatus.SUSPENDED);
         assertThat(response.isSuspended()).isTrue();
         assertThat(device.getSuspensionReason()).isEqualTo("Maintenance securite");
-        assertThat(device.getAlgorandTxId()).isEqualTo("tx-suspend");
+        assertThat(device.getAlgorandTxId()).isNull();
         verify(redisService).deleteDeviceCache(device.getDid());
+        verifyNoInteractions(algorandService);
         verify(auditLogService).record(
                 eq(EventType.DEVICE_SUSPENDED),
                 eq(device.getDid()),
                 eq(ActorType.ADMIN),
                 eq(true),
-                any(String.class)
+                any(String.class),
+                contains("\"targetStatus\":\"SUSPENDED\""),
+                eq(null)
         );
     }
 
@@ -94,8 +96,6 @@ class RevocationServiceTest {
         vc.setPermissions(List.of("device:read"));
 
         when(deviceRepository.findByDid(device.getDid())).thenReturn(Optional.of(device));
-        when(algorandService.publishDeviceLifecycleEvent(device.getDid(), "ACTIVE", "Reactivation"))
-                .thenReturn("tx-active");
         when(deviceRepository.save(any(Device.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(vcService.findLatestValidCredential(device.getDid())).thenReturn(Optional.of(vc));
 
@@ -105,12 +105,18 @@ class RevocationServiceTest {
         assertThat(response.isActive()).isTrue();
         assertThat(device.getSuspensionReason()).isNull();
         verify(redisService).saveDeviceCache(device.getDid(), device.getPublicKey(), "ACTIVE", List.of("device:read"), 300L);
+        verify(redisService).resetFailures(device.getDid(), "challenge");
+        verify(redisService).resetFailures(device.getDid(), "vp");
+        verify(redisService).resetFailures(device.getDid(), "perm");
+        verifyNoInteractions(algorandService);
         verify(auditLogService).record(
                 eq(EventType.DEVICE_REACTIVATED),
                 eq(device.getDid()),
                 eq(ActorType.ADMIN),
                 eq(true),
-                any(String.class)
+                any(String.class),
+                contains("\"resetFailureCounters\":true"),
+                eq(null)
         );
     }
 
@@ -129,12 +135,15 @@ class RevocationServiceTest {
         assertThat(response.isRevoked()).isTrue();
         assertThat(device.getRevocationReason()).isEqualTo("Cle compromise");
         verify(redisService).deleteDeviceCache(device.getDid());
+        verify(algorandService).publishDeviceLifecycleEvent(device.getDid(), "REVOKED", request.getReason());
         verify(auditLogService).record(
                 eq(EventType.DEVICE_REVOKED),
                 eq(device.getDid()),
                 eq(ActorType.ADMIN),
                 eq(true),
-                any(String.class)
+                any(String.class),
+                contains("\"algorandTxId\":\"tx-revoke\""),
+                eq(null)
         );
     }
 
@@ -152,6 +161,7 @@ class RevocationServiceTest {
         assertThat(response.getStatus()).isEqualTo(DeviceStatus.REVOKED);
         verify(deviceRepository).findBySerialNumber("SN-001");
         verify(redisService).deleteDeviceCache(device.getDid());
+        verify(algorandService).publishDeviceLifecycleEvent(device.getDid(), "REVOKED", request.getReason());
     }
 
     @Test

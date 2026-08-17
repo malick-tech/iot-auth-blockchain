@@ -1,0 +1,54 @@
+{
+  "name": "IotAuthRegistry",
+  "desc": "Interface ARC-4 du registre did:algo app namespace pour IoT Auth sur Algorand LocalNet.",
+  "methods": [
+    {
+      "name": "publish_did",
+      "desc": "Publie le DID Document selon la structure officielle did:algo app namespace.",
+      "args": [
+        {
+          "type": "byte[32]",
+          "name": "subject_public_key",
+          "desc": "Cle publique Ed25519 brute du sujet. Elle est aussi la cle de la metadata box."
+        },
+        {
+          "type": "uint64",
+          "name": "data_box_key",
+          "desc": "Cle uint64 de la data box qui contient le DID Document."
+        },
+        {
+          "type": "string",
+          "name": "did_document_json",
+          "desc": "DID Document JSON UTF-8 a stocker dans la data box."
+        }
+      ],
+      "returns": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "update_status",
+      "desc": "Met a jour metadata[2], le statut binaire du DID Document.",
+      "args": [
+        {
+          "type": "byte[32]",
+          "name": "subject_public_key",
+          "desc": "Cle publique Ed25519 brute du sujet."
+        },
+        {
+          "type": "uint8",
+          "name": "status",
+          "desc": "0 = uploading, 1 = ready/resolvable, 2 = deleted/revoked."
+        }
+      ],
+      "returns": {
+        "type": "void"
+      }
+    }
+  ],
+  "networks": {
+    "localnet": {
+      "appID": 1010
+    }
+  }
+}
