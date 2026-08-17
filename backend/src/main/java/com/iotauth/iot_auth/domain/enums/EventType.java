@@ -1,6 +1,12 @@
-package com.iotauth.iot_auth.domain.enums;
+﻿package com.iotauth.iot_auth.domain.enums;
 
 public enum EventType {
+    // Admin Authentication
+    ADMIN_LOGIN_SUCCESS,
+    ADMIN_LOGIN_FAILURE,
+    ADMIN_ACCOUNT_CREATED,
+
+    // Device Lifecycle
     DEVICE_PRE_REGISTERED,
     FIRST_CONTACT_RECEIVED,
     FIRST_CONTACT_REJECTED,
@@ -8,19 +14,34 @@ public enum EventType {
     CHALLENGE_VALIDATED,
     CHALLENGE_FAILED,
     DEVICE_ACTIVATED,
+
+    // Credentials & JWT
     VC_ISSUED,
     JWT_ISSUED,
+    JWT_RENEWED,
+
+    // Authentication
     AUTH_CACHE_HIT,
     AUTH_CACHE_MISS,
+    AUTHENTICATION_SUCCESS,
+    AUTHENTICATION_FAILURE,
+
+    // Verifiable Presentation
     VP_CHALLENGE_ISSUED,
     VP_VALIDATED,
     VP_REJECTED,
-    JWT_RENEWED,
+
+    // Device Status Changes
     DEVICE_SUSPENDED,
     DEVICE_REACTIVATED,
     DEVICE_REVOKED,
     REVOKED_DEVICE_ACCESS_ATTEMPT,
+
+    // Permissions & Security
     PERMISSION_VIOLATION,
+    ANOMALY_DETECTED,
+
+    // Blockchain Events
     ALGORAND_PUBLICATION_FAILED,
     ALGORAND_PUBLICATION_CONFIRMED
 }

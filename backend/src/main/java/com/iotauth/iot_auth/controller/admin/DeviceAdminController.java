@@ -33,8 +33,7 @@ public class DeviceAdminController {
     }
 
     @GetMapping
-    public List<DeviceResponse> getAllDevices(@RequestParam(required = false) DeviceStatus status) {
-        if (status != null) {
+        public List<DeviceResponse> getAllDevices(@RequestParam(name = "status", required = false) DeviceStatus status) {        if (status != null) {
             return deviceService.getDevicesByStatus(status);
         }
         return deviceService.getAllDevices();
@@ -48,5 +47,10 @@ public class DeviceAdminController {
     @GetMapping(path = "/serial/{serialNumber}")
     public DeviceResponse getDeviceBySerialNumber(@PathVariable String serialNumber) {
         return deviceService.getDeviceBySerialNumber(serialNumber);
+    }
+
+    @GetMapping(path = "/did/{did}")
+    public DeviceResponse getDeviceByDid(@PathVariable String did) {
+        return deviceService.getDeviceByDid(did);
     }
 }

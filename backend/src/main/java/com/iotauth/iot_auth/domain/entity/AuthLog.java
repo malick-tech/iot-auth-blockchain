@@ -47,6 +47,9 @@ public class AuthLog {
     private Boolean success;
     private String sourceIp;
 
+     /** Nom de l'admin authentifié à l'origine de l'action, rempli automatiquement. */
+    private String adminUsername;
+
     @Column(columnDefinition = "TEXT")
     private String details;
 

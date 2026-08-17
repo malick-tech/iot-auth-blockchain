@@ -1,4 +1,4 @@
-package com.iotauth.iot_auth.exception;
+﻿package com.iotauth.iot_auth.exception;
 
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
@@ -61,6 +61,24 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.UNAUTHORIZED, "NONCE_EXPIRED", ex.getMessage());
     }
 
+    @ExceptionHandler(AdminAlreadyExistsException.class)
+    public ResponseEntity<Map<String, Object>> handleAdminAlreadyExists(AdminAlreadyExistsException ex) {
+        log.warn("Admin already exists: {}", ex.getMessage());
+        return buildErrorResponse(HttpStatus.CONFLICT, "ADMIN_ALREADY_EXISTS", ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidAdminCredentialsException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidAdminCredentials(InvalidAdminCredentialsException ex) {
+        log.warn("Invalid admin credentials attempt");
+        return buildErrorResponse(HttpStatus.UNAUTHORIZED, "INVALID_ADMIN_CREDENTIALS", ex.getMessage());
+    }
+
+    @ExceptionHandler(UnauthorizedAdminException.class)
+    public ResponseEntity<Map<String, Object>> handleUnauthorizedAdmin(UnauthorizedAdminException ex) {
+        log.warn("Unauthorized admin access: {}", ex.getMessage());
+        return buildErrorResponse(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", ex.getMessage());
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
         String message = ex.getBindingResult()
@@ -95,13 +113,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalState(IllegalStateException ex) {
         log.error("Illegal state: {}", ex.getMessage(), ex);
-        return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Une erreur système s'est produite");
+        return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Une erreur systÃ¨me s'est produite");
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneric(Exception ex) {
         log.error("Unexpected error: {}", ex.getMessage(), ex);
-        return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Une erreur système s'est produite");
+        return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Une erreur systÃ¨me s'est produite");
     }
 
     private ResponseEntity<Map<String, Object>> buildErrorResponse(HttpStatus status, String code, String message) {

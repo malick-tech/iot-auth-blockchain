@@ -44,6 +44,73 @@ public class AuditLogService {
         log.setDetails(details);
         log.setMetadata(metadata);
         log.setSourceIp(sourceIp);
+        if (actor == ActorType.ADMIN) {
+            log.setAdminUsername(CurrentAdminHolder.get());
+        }
         return authLogRepository.save(log);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public AuthLog recordAdminAction(
+            EventType eventType,
+            String adminUsername,
+            boolean success,
+            String details
+    ) {
+        AuthLog log = new AuthLog();
+        log.setEventType(eventType);
+        log.setActor(ActorType.ADMIN);
+        log.setAdminUsername(adminUsername);
+        log.setSuccess(success);
+        log.setDetails(details);
+        return authLogRepository.save(log);
+    }
+
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<com.iotauth.iot_auth.dto.response.AuthLogResponse> search(
+            com.iotauth.iot_auth.domain.enums.EventType eventType,
+            String deviceDid,
+            String adminUsername,
+            Boolean success,
+            int page,
+            int size
+    ) {
+        org.springframework.data.jpa.domain.Specification<com.iotauth.iot_auth.domain.entity.AuthLog> spec =
+                (root, query, cb) -> cb.conjunction();
+
+        if (eventType != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("eventType"), eventType));
+        }
+        if (deviceDid != null && !deviceDid.isBlank()) {
+            spec = spec.and((root, query, cb) -> cb.like(root.get("deviceDid"), "%" + deviceDid + "%"));
+        }
+        if (adminUsername != null && !adminUsername.isBlank()) {
+            spec = spec.and((root, query, cb) -> cb.like(
+                    cb.lower(root.get("adminUsername")),
+                    "%" + adminUsername.toLowerCase() + "%"
+            ));
+        }
+        if (success != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("success"), success));
+        }
+
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(
+                page, size,
+                org.springframework.data.domain.Sort.by("timestamp").descending()
+        );
+
+        return authLogRepository.findAll(spec, pageable)
+                .map(log -> com.iotauth.iot_auth.dto.response.AuthLogResponse.builder()
+                        .id(log.getId())
+                        .deviceDid(log.getDeviceDid())
+                        .eventType(log.getEventType().name())
+                        .actor(log.getActor() != null ? log.getActor().name() : null)
+                        .adminUsername(log.getAdminUsername())
+                        .success(log.getSuccess())
+                        .sourceIp(log.getSourceIp())
+                        .details(log.getDetails())
+                        .metadata(log.getMetadata())
+                        .timestamp(log.getTimestamp())
+                        .build());
     }
 }

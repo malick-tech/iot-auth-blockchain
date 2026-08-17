@@ -42,7 +42,11 @@ public class DeviceService {
                 null,
                 ActorType.ADMIN,
                 true,
-                "Pré-enregistrement du dispositif " + savedDevice.getSerialNumber()
+                "Pré-enregistrement du dispositif " + savedDevice.getSerialNumber(),
+                "{\"serialNumber\":\"" + jsonEscape(savedDevice.getSerialNumber()) + "\",\"deviceType\":\""
+                        + jsonEscape(savedDevice.getDeviceType()) + "\",\"location\":\""
+                        + jsonEscape(savedDevice.getLocation()) + "\",\"initialStatus\":\"PENDING\"}",
+                null
         );
 
         return toResponse(savedDevice);
@@ -109,10 +113,23 @@ public class DeviceService {
                 .responsible(device.getResponsible())
                 .activatedAt(device.getActivatedAt())
                 .suspendedAt(device.getSuspendedAt())
+                .suspensionReason(device.getSuspensionReason())
                 .revokedAt(device.getRevokedAt())
+                .revocationReason(device.getRevocationReason())
                 .lastSeenAt(device.getLastSeenAt())
                 .createdAt(device.getCreatedAt())
                 .updatedAt(device.getUpdatedAt())
                 .build();
+    }
+
+    private String jsonEscape(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r");
     }
 }

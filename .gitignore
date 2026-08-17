@@ -1,6 +1,7 @@
 # Maven
 target/
 backend/target/
+backend/.m2/
 *.class
 *.jar
 
@@ -19,6 +20,7 @@ spring-petclinic/
 # Local/generated workspace copies kept at root during migration
 /postman/
 /.postman/
+/.codex-docx-extract/
 /*.docx
 /read_docx.py
 
@@ -26,6 +28,28 @@ spring-petclinic/
 application-prod.yml
 *.env
 secrets/
+*.credentials
+*.credentials.json
+flows_cred.json
+
+# Obsolete/local compose copy. Use root compose.yaml instead.
+/backend/docker-compose.yml
+
+# Node / frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Node-RED runtime data
+gateway/node-red-data/node_modules/
+gateway/node-red-data/.npm/
+gateway/node-red-data/.config*.json
+gateway/node-red-data/*.backup
+gateway/node-red-data/flows_cred.json
+
+# Python
+__pycache__/
+*.py[cod]
 
 # Logs
 *.log
