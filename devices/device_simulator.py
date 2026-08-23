@@ -1,6 +1,7 @@
 import argparse
 import base64
 import json
+import os
 import signal
 import sys
 import time
@@ -8,12 +9,95 @@ from pathlib import Path
 
 import nacl.signing
 import paho.mqtt.client as mqtt
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives import hashes
 
 
 DEFAULT_MQTT_HOST = "localhost"
 DEFAULT_MQTT_PORT = 1883
 DEFAULT_APP_ID = 1014
+DEFAULT_MAX_ENROLL_ATTEMPTS = 20
 STATE_DIR = Path(__file__).resolve().parent / "state"
+MASTER_KEY_PATH = STATE_DIR / ".master.key"
+
+# ---------------------------------------------------------------------------
+# Chiffrement au repos de la cle privee (equivalent simule du NVS chiffre
+# d'un ESP32 reel - section 3.2.1 du memoire).
+#
+# Note d'implementation : le memoire mentionne AES-XTS (mode utilise par
+# l'API NVS Encryption d'Espressif pour chiffrer des secteurs de flash).
+# XTS est concu pour des blocs de taille fixe sans authentification
+# integree - adapte a du stockage flash brut, mais pas a un seul petit
+# blob (32 octets de cle privee) dans un fichier JSON. On utilise ici
+# AES-256-GCM : meme niveau de securite pour ce cas d'usage, avec en plus
+# une authentification integree (toute alteration du fichier est detectee
+# au dechiffrement). Sur un vrai firmware ESP32, c'est bien l'API NVS
+# Encryption (AES-XTS) qu'il faut utiliser.
+#
+# Sur un ESP32 reel, la cle de chiffrement NVS est derivee d'un secret
+# grave dans l'eFuse a la fabrication (protection materielle, jamais
+# lisible depuis le logiciel). Ici, cette clef materielle est simulee par
+# un fichier local "state/.master.key" genere une seule fois. C'est le
+# secret qui, sur un vrai dispositif, serait protege par le hardware -
+# on ne peut pas simuler une vraie racine de confiance materielle depuis
+# un simple script Python.
+# ---------------------------------------------------------------------------
+
+
+def load_or_create_master_key() -> bytes:
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    if MASTER_KEY_PATH.exists():
+        return base64.b64decode(MASTER_KEY_PATH.read_text().strip())
+
+    master_key = os.urandom(32)
+    MASTER_KEY_PATH.write_text(base64.b64encode(master_key).decode("utf-8"))
+    try:
+        os.chmod(MASTER_KEY_PATH, 0o600)
+    except OSError:
+        pass  # best-effort sur systemes qui ne supportent pas chmod (ex: Windows)
+    print(f"[SECURITY] Nouvelle cle maitresse generee : {MASTER_KEY_PATH}")
+    print("[SECURITY] Sur un vrai dispositif, cette cle serait provisionnee en usine dans l'eFuse.")
+    return master_key
+
+
+def derive_device_key(master_key: bytes, serial: str) -> bytes:
+    """Derive une cle AES-256 propre a ce dispositif a partir de la cle maitresse."""
+    return HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=serial.encode("utf-8"),
+        info=b"iot-auth-blockchain:private-key-encryption",
+    ).derive(master_key)
+
+
+def encrypt_private_key(master_key: bytes, serial: str, private_key: bytes) -> dict:
+    device_key = derive_device_key(master_key, serial)
+    aesgcm = AESGCM(device_key)
+    nonce = os.urandom(12)
+    ciphertext = aesgcm.encrypt(nonce, private_key, associated_data=serial.encode("utf-8"))
+    return {
+        "algorithm": "AES-256-GCM",
+        "nonce": base64.b64encode(nonce).decode("utf-8"),
+        "ciphertext": base64.b64encode(ciphertext).decode("utf-8"),
+    }
+
+
+def decrypt_private_key(master_key: bytes, serial: str, encrypted: dict) -> bytes:
+    device_key = derive_device_key(master_key, serial)
+    aesgcm = AESGCM(device_key)
+    nonce = base64.b64decode(encrypted["nonce"])
+    ciphertext = base64.b64decode(encrypted["ciphertext"])
+    try:
+        return aesgcm.decrypt(nonce, ciphertext, associated_data=serial.encode("utf-8"))
+    except Exception as exc:
+        raise RuntimeError(
+            f"Impossible de dechiffrer la cle privee de {serial} : fichier corrompu, "
+            "altere, ou cle maitresse differente de celle utilisee au chiffrement."
+        ) from exc
+
+
+# ---------------------------------------------------------------------------
 
 
 def encode_base32(data: bytes) -> str:
@@ -50,7 +134,7 @@ def state_path(serial: str) -> Path:
     return STATE_DIR / f"{safe_serial}.json"
 
 
-def load_or_create_identity(serial: str, app_id: int) -> dict:
+def load_or_create_identity(serial: str, app_id: int, master_key: bytes) -> dict:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     path = state_path(serial)
     if path.exists():
@@ -58,6 +142,9 @@ def load_or_create_identity(serial: str, app_id: int) -> dict:
             identity = json.load(fh)
         if identity.get("serialNumber") != serial:
             raise RuntimeError(f"Identite locale incoherente : {path} ne correspond pas au serial {serial}")
+        # Verifie que la cle privee est bien dechiffrable des le chargement,
+        # plutot que d'echouer plus tard au premier besoin de signature.
+        decrypt_private_key(master_key, serial, identity["privateKeyEncrypted"])
         return identity
 
     signing_key = nacl.signing.SigningKey.generate()
@@ -65,7 +152,7 @@ def load_or_create_identity(serial: str, app_id: int) -> dict:
     public_key = bytes(signing_key.verify_key)
     identity = {
         "serialNumber": serial,
-        "privateKeyBase64": base64.b64encode(private_key).decode("utf-8"),
+        "privateKeyEncrypted": encrypt_private_key(master_key, serial, private_key),
         "publicKeyBase32": encode_base32(public_key),
         "did": build_did(public_key, app_id),
         "jwt": None,
@@ -74,17 +161,24 @@ def load_or_create_identity(serial: str, app_id: int) -> dict:
         "expiresAt": None,
     }
     save_state(identity)
+    print(f"[SECURITY] Cle privee de {serial} chiffree au repos dans {state_path(serial)}")
     return identity
 
 
 def save_state(state: dict) -> None:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
-    with state_path(state["serialNumber"]).open("w", encoding="utf-8") as fh:
+    path = state_path(state["serialNumber"])
+    with path.open("w", encoding="utf-8") as fh:
         json.dump(state, fh, indent=2)
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
 
 
-def signing_key_from_state(state: dict) -> nacl.signing.SigningKey:
-    return nacl.signing.SigningKey(base64.b64decode(state["privateKeyBase64"]))
+def signing_key_from_state(state: dict, master_key: bytes) -> nacl.signing.SigningKey:
+    private_key = decrypt_private_key(master_key, state["serialNumber"], state["privateKeyEncrypted"])
+    return nacl.signing.SigningKey(private_key)
 
 
 class GatewayRpcClient:
@@ -141,8 +235,8 @@ def is_jwt_valid(state: dict, renew_margin_seconds: int) -> bool:
     return exp - int(time.time()) > renew_margin_seconds
 
 
-def enroll_device(state: dict, gateway: GatewayRpcClient) -> None:
-    signing_key = signing_key_from_state(state)
+def enroll_device(state: dict, gateway: GatewayRpcClient, master_key: bytes) -> None:
+    signing_key = signing_key_from_state(state, master_key)
     serial = state["serialNumber"]
     did = state["did"]
 
@@ -204,8 +298,8 @@ def build_verifiable_presentation(state: dict) -> str:
     )
 
 
-def renew_jwt(state: dict, gateway: GatewayRpcClient) -> None:
-    signing_key = signing_key_from_state(state)
+def renew_jwt(state: dict, gateway: GatewayRpcClient, master_key: bytes) -> None:
+    signing_key = signing_key_from_state(state, master_key)
     challenge = gateway.request(
         f"iot/{state['did']}/auth/challenge/request",
         f"iot/{state['did']}/auth/challenge/response",
@@ -229,8 +323,8 @@ def renew_jwt(state: dict, gateway: GatewayRpcClient) -> None:
     save_state(state)
 
 
-def publish_operational_request(client, state: dict, permission: str) -> None:
-    signing_key = signing_key_from_state(state)
+def publish_operational_request(client, state: dict, permission: str, master_key: bytes) -> None:
+    signing_key = signing_key_from_state(state, master_key)
     claims = decode_jwt_payload(state["jwt"])
     timestamp = int(time.time())
     proof_signature = sign_b64url(signing_key, f"{claims['jti']}:{timestamp}")
@@ -245,8 +339,37 @@ def publish_operational_request(client, state: dict, permission: str) -> None:
     print(f"[TX] {topic} permission={permission} ts={timestamp}")
 
 
+class EnrollmentAbandoned(RuntimeError):
+    """Leve quand le nombre maximal de tentatives d'enrolement est atteint."""
+
+
+def wait_for_enrollment(
+    state: dict, gateway: GatewayRpcClient, master_key: bytes, retry_delay: int, max_attempts: int
+) -> None:
+    attempt = 0
+    while not is_jwt_valid(state, 0):
+        attempt += 1
+        try:
+            print(f"[AUTH] Enrolement du dispositif via gateway MQTT... (tentative {attempt}"
+                  + (f"/{max_attempts}" if max_attempts > 0 else "") + ")")
+            enroll_device(state, gateway, master_key)
+            print("[AUTH] Enrolement termine, JWT PoP obtenu.")
+            return
+        except Exception as exc:
+            print(f"[AUTH] En attente du pre-enregistrement admin ou des services : {exc}")
+            if max_attempts > 0 and attempt >= max_attempts:
+                raise EnrollmentAbandoned(
+                    f"Echec de l'enrolement apres {attempt} tentatives ({max_attempts} max). "
+                    "Verifie que : (1) le serial est bien pre-enregistre cote admin, "
+                    "(2) le gateway MQTT et le backend sont demarres, "
+                    "(3) --app-id correspond au smart contract deploye."
+                ) from exc
+            time.sleep(retry_delay)
+
+
 def run_device(args) -> None:
-    state = load_or_create_identity(args.serial, args.app_id)
+    master_key = load_or_create_master_key()
+    state = load_or_create_identity(args.serial, args.app_id, master_key)
 
     print("Device pret")
     print(f"  serial    : {state['serialNumber']}")
@@ -255,14 +378,13 @@ def run_device(args) -> None:
     print("Assure-toi que ce serial est pre-enregistre par l'admin avant le premier contact.")
 
     gateway = GatewayRpcClient(args.mqtt_host, args.mqtt_port, args.gateway_timeout)
-    while not is_jwt_valid(state, args.renew_margin):
-        try:
-            print("[AUTH] Enrolement du dispositif via gateway MQTT...")
-            enroll_device(state, gateway)
-            print("[AUTH] Enrolement termine, JWT PoP obtenu.")
-        except Exception as exc:
-            print(f"[AUTH] En attente du pre-enregistrement admin ou des services : {exc}")
-            time.sleep(args.retry_delay)
+
+    try:
+        wait_for_enrollment(state, gateway, master_key, args.retry_delay, args.max_enroll_attempts)
+    except EnrollmentAbandoned as exc:
+        print(f"[FATAL] {exc}")
+        gateway.close()
+        sys.exit(1)
 
     client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
     response_topic = f"iot/{state['did']}/operational/response"
@@ -291,9 +413,9 @@ def run_device(args) -> None:
             try:
                 if not is_jwt_valid(state, args.renew_margin):
                     print("[AUTH] JWT proche expiration, renouvellement via gateway...")
-                    renew_jwt(state, gateway)
+                    renew_jwt(state, gateway, master_key)
                     print("[AUTH] JWT renouvele.")
-                publish_operational_request(client, state, args.permission)
+                publish_operational_request(client, state, args.permission, master_key)
             except Exception as exc:
                 print(f"[WARN] Cycle operationnel echoue : {exc}")
             time.sleep(args.interval)
@@ -316,6 +438,12 @@ def parse_args():
     parser.add_argument("--app-id", type=int, default=DEFAULT_APP_ID)
     parser.add_argument("--interval", type=int, default=15, help="Delai entre deux requetes operationnelles")
     parser.add_argument("--retry-delay", type=int, default=5, help="Delai de retry si le pre-enregistrement manque")
+    parser.add_argument(
+        "--max-enroll-attempts",
+        type=int,
+        default=DEFAULT_MAX_ENROLL_ATTEMPTS,
+        help="Nombre max de tentatives d'enrolement avant abandon (0 = illimite)",
+    )
     parser.add_argument("--renew-margin", type=int, default=60, help="Renouvelle le JWT s'il expire dans moins de N secondes")
     parser.add_argument("--permission", default="device:read", help="Permission demandee a la gateway")
     return parser.parse_args()
