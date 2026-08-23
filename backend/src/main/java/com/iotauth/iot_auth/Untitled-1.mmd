@@ -1,0 +1,123 @@
+---
+references:
+  - "File: /backend/src/main/java/com/iotauth/iot_auth/IotAuthApplication.java"
+  - "File:
+    /backend/src/main/java/com/iotauth/iot_auth/config/AdminAuthFilter.java"
+  - "File: /backend/src/main/java/com/iotauth/iot_auth/config/CorsConfig.java"
+  - "File:
+    /backend/src/main/java/com/iotauth/iot_auth/config/RateLimitFilter.java"
+  - "File:
+    /backend/src/main/java/com/iotauth/iot_auth/controller/admin/AdminAuthContr\
+    oller.java"
+  - "File:
+    /backend/src/main/java/com/iotauth/iot_auth/controller/auth/AuthController.\
+    java"
+  - "File:
+    /backend/src/main/java/com/iotauth/iot_auth/domain/enums/DeviceStatus.java"
+  - "File:
+    /backend/src/main/java/com/iotauth/iot_auth/domain/enums/EventType.java"
+  - "File:
+    /backend/src/main/java/com/iotauth/iot_auth/exception/GlobalExceptionHandle\
+    r.java"
+  - "File:
+    /backend/src/main/java/com/iotauth/iot_auth/repository/DeviceRepository.jav\
+    a"
+  - "File:
+    /backend/src/main/java/com/iotauth/iot_auth/service/AdminAuthService.java"
+  - "File:
+    /backend/src/main/java/com/iotauth/iot_auth/service/AdminJwtService.java"
+  - "File:
+    /backend/src/main/java/com/iotauth/iot_auth/service/AdminKeyService.java"
+  - "File:
+    /backend/src/main/java/com/iotauth/iot_auth/service/AnomalyDetectionService\
+    .java"
+  - "File:
+    /backend/src/main/java/com/iotauth/iot_auth/service/AuditLogService.java"
+  - "File:
+    /backend/src/main/java/com/iotauth/iot_auth/service/DeviceInactivityMonitor\
+    Service.java"
+  - "File:
+    /backend/src/main/java/com/iotauth/iot_auth/service/EnrollmentService.java"
+  - "File:
+    /backend/src/main/java/com/iotauth/iot_auth/service/OperationalVerification\
+    Service.java"
+  - "File: /backend/src/main/java/com/iotauth/iot_auth/service/RedisService.java"
+  - "File:
+    /backend/src/main/java/com/iotauth/iot_auth/service/RevocationService.java"
+  - "File: /backend/src/main/java/com/iotauth/iot_auth/service/VcService.java"
+  - "File:
+    /backend/src/main/java/com/iotauth/iot_auth/service/VpVerificationService.j\
+    ava"
+  - "File: /devices/device_simulator.py"
+  - "File: /frontend/src/App.jsx"
+  - "File: /frontend/src/AuthContext.jsx"
+  - "File: /frontend/src/LoginPage.jsx"
+  - "File: /frontend/src/LogsPage.jsx"
+  - "File: /frontend/src/api/client.js"
+  - "File: /frontend/src/components/ConfirmActionModal.jsx"
+  - "File: /frontend/src/components/DashboardHeader.jsx"
+  - "File: /frontend/src/components/DeviceDetailPanel.jsx"
+  - "File: /frontend/src/components/DeviceTable.jsx"
+  - "File: /frontend/src/components/EnrollDeviceForm.jsx"
+  - "File: /frontend/src/components/SkeletonTable.jsx"
+  - "File: /frontend/src/components/StatusBadge.jsx"
+  - "File: /frontend/src/hooks/useFocusTrap.js"
+  - "File: /frontend/src/utils/format.js"
+  - "File: /gateway/device_gateway_bridge.py"
+  - "File: /gateway/test_bridge_sub.py"
+  - "File: /gateway/test_mqtt_bridge.py"
+  - "File: /gateway/test_sub_final.py"
+  - "File: /gateway/test_win_pub.py"
+  - "File: /run_device.ps1"
+  - "File: /test_enroll_full.py"
+generationTime: 2026-08-23T00:28:18.932Z
+id: c67de46e-29e6-4ed4-aeaa-dd30e03456a9
+---
+flowchart TD
+    S["Frontend admin or IoT device"] -->|HTTP| F["CORS, rate limiting, and admin authentication filters"]
+    S -->|MQTT| G["MQTT gateway bridge"]
+    G --> F
+
+    F{"Request accepted?"}
+    F -->|No| H["HTTP or MQTT error response"]
+    F -->|Yes| R{"Route by endpoint"}
+
+    R -->|Admin API| A["Admin controllers and services"]
+    R -->|Enrollment or authentication| E["Enrollment and authentication services"]
+    R -->|Operational API| O["Operational verification service"]
+
+    A --> J["Admin JWT validation, generation, and logout blacklist"]
+    J --> B[("PostgreSQL admin and device data")]
+    J --> N[("Redis nonce, cache, counters, and blacklist")]
+    A --> Q["Suspend, reactivate, or revoke device"]
+    Q --> B
+    Q --> N
+    Q --> L[("Algorand DID lifecycle state")]
+    Q --> K["Audit logging and anomaly detection"]
+
+    E --> V["DID, signature, VP, and VC validation"]
+    V -->|Invalid| H
+    V -->|Valid| N
+    N -->|Challenge and failure counters| E
+    E --> B
+    E --> L
+    E -->|Success| K
+    E --> H
+
+    O --> C{"Gateway cache HIT?"}
+    C -->|Yes| K
+    C -->|No| Y["JWT, on-chain, PostgreSQL, permission, and proof checks"]
+    Y -->|Rejected| K
+    Y -->|Authorized| N
+    Y --> B
+    Y --> L
+    Y --> K
+    O --> H
+
+    I["Scheduled inactivity monitor"] --> Q
+    I --> B
+    I --> N
+    I --> K
+
+    K --> H
+    H --> S
