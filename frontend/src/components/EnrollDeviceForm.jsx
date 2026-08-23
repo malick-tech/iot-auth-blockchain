@@ -3,7 +3,16 @@ import { ArrowRight, Database, Fingerprint, ShieldCheck, X } from "lucide-react"
 import { api } from "../api/client";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 
-const DEVICE_TYPES = ["capteur-temperature", "capteur-humidite", "actionneur", "passerelle"];
+const DEVICE_TYPES = [
+  "capteur-temperature",
+  "capteur-humidite",
+  "capteur-pression",
+  "capteur-luminosite",
+  "compteur-energie",
+  "capteur-ouverture",
+  "actionneur",
+  "passerelle",
+];
 
 export default function EnrollDeviceForm({ responsible, onEnrolled, onClose }) {
   const [form, setForm] = useState({

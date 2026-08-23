@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import java.util.List;
 
 @RestController
 @RequestMapping(path = "/api/admin/logs")
@@ -20,12 +21,13 @@ public class AuditLogController {
     @GetMapping
    public Page<AuthLogResponse> search(
             @RequestParam(name = "eventType", required = false) EventType eventType,
+            @RequestParam(name = "eventTypes", required = false) List<EventType> eventTypes,
             @RequestParam(name = "did", required = false) String did,
             @RequestParam(name = "adminUsername", required = false) String adminUsername,
             @RequestParam(name = "success", required = false) Boolean success,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size
     ) {
-        return auditLogService.search(eventType, did, adminUsername, success, page, size);
+        return auditLogService.search(eventType, eventTypes, did, adminUsername, success, page, size);
     }
 }

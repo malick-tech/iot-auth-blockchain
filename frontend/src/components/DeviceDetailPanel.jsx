@@ -6,7 +6,7 @@ import { useToast } from "./useToast";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import { formatDate, txUrl } from "../utils/format";
 
-const APP_ID = import.meta.env.VITE_ALGORAND_APP_ID ?? "1010";
+const APP_ID = import.meta.env.VITE_ALGORAND_APP_ID ?? "1014";
 
 function Field({ label, children, mono = false }) {
   return (

@@ -28,10 +28,19 @@ public class AdminBootstrap implements CommandLineRunner {
         if (adminUserRepository.count() == 0) {
             AdminUser admin = new AdminUser();
             admin.setUsername(bootstrapUsername);
+            admin.setFullName(bootstrapUsername);
             admin.setPasswordHash(passwordEncoder.encode(bootstrapPassword));
             adminUserRepository.save(admin);
             log.warn("Aucun compte admin trouvé - compte '{}' créé avec le mot de passe par défaut. " +
                     "Change-le rapidement ou définis iot.auth.admin.bootstrap-password.", bootstrapUsername);
+            return;
         }
+
+        adminUserRepository.findAll().stream()
+                .filter(admin -> admin.getFullName() == null || admin.getFullName().isBlank())
+                .forEach(admin -> {
+                    admin.setFullName(admin.getUsername());
+                    adminUserRepository.save(admin);
+                });
     }
 }
