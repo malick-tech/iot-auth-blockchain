@@ -18,7 +18,6 @@ const STATUS_CARDS = [
   { key: "ACTIVE",         label: "Actifs",           dot: "bg-emerald-500" },
   { key: "PENDING",        label: "En attente",        dot: "bg-amber-500"   },
   { key: "PRE_REGISTERED", label: "Pré-enregistrés",   dot: "bg-sky-500"     },
-  { key: "PUBLISHING",     label: "En publication",    dot: "bg-purple-400"  },
   { key: "SUSPENDED",      label: "Suspendus",         dot: "bg-orange-500"  },
   { key: "REVOKED",        label: "Révoqués",          dot: "bg-red-500"     },
 ];
@@ -44,7 +43,7 @@ function MetricCard({ label, value, detail, active, onClick, dot }) {
 }
 
 export default function App() {
-  const { username, logout } = useAuth();
+  const { username, fullName, logout } = useAuth();
   const showToast            = useToast();
 
   // ── State principal ──────────────────────────────────────────────────────────
@@ -247,8 +246,8 @@ export default function App() {
             </button>
 
             <div className="flex items-center gap-2 border-l border-ink/10 pl-3">
-              <span className="text-xs text-ink/50" aria-label={`Connecté en tant que ${username}`}>
-                {username}
+              <span className="text-xs text-ink/50" aria-label={`Connecté en tant que ${fullName || username}`}>
+                {fullName || username}
               </span>
               <button
                 onClick={logout}
@@ -273,7 +272,7 @@ export default function App() {
 
           {/* Metric cards filtrables */}
           <section
-            className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-7"
+            className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"
             aria-label="Filtres par statut"
           >
             <MetricCard

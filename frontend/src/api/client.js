@@ -56,13 +56,17 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
 
+  refreshAdminToken: () =>
+    request("/api/admin/auth/refresh", { method: "POST" }),
+
   listDevices: () => request("/api/admin/devices"),
 
   getDeviceByDid: (did) => request(`/api/admin/devices/did/${encodeURIComponent(did)}`),
 
-  searchLogs: ({ eventType, did, adminUsername, success, page = 0, size = 20 } = {}) => {
+  searchLogs: ({ eventType, eventTypes, did, adminUsername, success, page = 0, size = 20 } = {}) => {
     const params = new URLSearchParams();
     if (eventType) params.set("eventType", eventType);
+    eventTypes?.forEach((type) => params.append("eventTypes", type));
     if (did) params.set("did", did);
     if (adminUsername) params.set("adminUsername", adminUsername);
     if (success !== undefined && success !== null && success !== "") params.set("success", success);

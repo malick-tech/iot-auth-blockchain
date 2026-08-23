@@ -2,6 +2,7 @@ import argparse
 import base64
 import json
 import os
+import random
 import signal
 import sys
 import time
@@ -20,6 +21,7 @@ DEFAULT_APP_ID = 1014
 DEFAULT_MAX_ENROLL_ATTEMPTS = 20
 STATE_DIR = Path(__file__).resolve().parent / "state"
 MASTER_KEY_PATH = STATE_DIR / ".master.key"
+DEVICE_STARTED_AT = time.time()
 
 # ---------------------------------------------------------------------------
 # Chiffrement au repos de la cle privee (equivalent simule du NVS chiffre
@@ -142,6 +144,34 @@ def load_or_create_identity(serial: str, app_id: int, master_key: bytes) -> dict
             identity = json.load(fh)
         if identity.get("serialNumber") != serial:
             raise RuntimeError(f"Identite locale incoherente : {path} ne correspond pas au serial {serial}")
+
+        # Migration depuis l'ancien format (cle privee stockee en clair sous
+        # "privateKeyBase64"). On chiffre la cle existante et on reecrit le
+        # fichier, sans rien perdre : meme DID, meme JWT, meme historique.
+        if "privateKeyEncrypted" not in identity and "privateKeyBase64" in identity:
+            print(f"[SECURITY] Migration de {path.name} vers le stockage chiffre (ancien format detecte)...")
+            private_key = base64.b64decode(identity.pop("privateKeyBase64"))
+            identity["privateKeyEncrypted"] = encrypt_private_key(master_key, serial, private_key)
+            save_state(identity)
+            print(f"[SECURITY] Migration terminee : {path.name} ne contient plus de cle en clair.")
+
+        # Format inconnu : ni le format chiffre actuel, ni l'ancien format en
+        # clair. Plutot que de planter avec un KeyError cryptique, on donne
+        # un diagnostic exploitable (quelles cles sont presentes) et une
+        # piste de resolution.
+        if "privateKeyEncrypted" not in identity:
+            known_key_fields = {"privateKeyEncrypted", "privateKeyBase64"}
+            present_fields = sorted(identity.keys())
+            raise RuntimeError(
+                f"Format de {path} non reconnu : aucune cle privee exploitable trouvee.\n"
+                f"  Champs presents dans le fichier : {present_fields}\n"
+                f"  Champs de cle privee attendus (l'un des deux) : {sorted(known_key_fields)}\n"
+                f"Ce fichier vient probablement d'une version encore plus ancienne du simulateur.\n"
+                f"Options : (1) envoyer le contenu de ce fichier pour ajouter la migration correspondante, "
+                f"ou (2) si ce dispositif est un test jetable, supprimer {path} et relancer "
+                f"(genere une nouvelle identite -> necessite un nouveau pre-enregistrement admin avec le nouveau DID)."
+            )
+
         # Verifie que la cle privee est bien dechiffrable des le chargement,
         # plutot que d'echouer plus tard au premier besoin de signature.
         decrypt_private_key(master_key, serial, identity["privateKeyEncrypted"])
@@ -334,6 +364,13 @@ def publish_operational_request(client, state: dict, permission: str, master_key
         "timestamp": timestamp,
         "proofSignature": proof_signature,
         "requestedPermission": permission,
+        "metrics": {
+            "temperatureC": round(22.0 + random.uniform(-2.5, 2.5), 2),
+            "humidityPercent": round(50.0 + random.uniform(-8.0, 8.0), 2),
+            "batteryPercent": 100,
+            "uptimeSeconds": int(time.time() - DEVICE_STARTED_AT),
+            "measuredAt": int(time.time()),
+        },
     }
     client.publish(topic, json.dumps(payload), qos=1)
     print(f"[TX] {topic} permission={permission} ts={timestamp}")
@@ -350,10 +387,15 @@ def wait_for_enrollment(
     while not is_jwt_valid(state, 0):
         attempt += 1
         try:
-            print(f"[AUTH] Enrolement du dispositif via gateway MQTT... (tentative {attempt}"
+            action = "Renouvellement de l'authentification" if state.get("verifiableCredential") else "Enrolement du dispositif"
+            print(f"[AUTH] {action} via gateway MQTT... (tentative {attempt}"
                   + (f"/{max_attempts}" if max_attempts > 0 else "") + ")")
-            enroll_device(state, gateway, master_key)
-            print("[AUTH] Enrolement termine, JWT PoP obtenu.")
+            if state.get("verifiableCredential"):
+                renew_jwt(state, gateway, master_key)
+                print("[AUTH] Authentification renouvelee, JWT PoP obtenu.")
+            else:
+                enroll_device(state, gateway, master_key)
+                print("[AUTH] Enrolement termine, JWT PoP obtenu.")
             return
         except Exception as exc:
             print(f"[AUTH] En attente du pre-enregistrement admin ou des services : {exc}")

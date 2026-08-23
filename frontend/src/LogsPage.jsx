@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, UserCheck } from "lucide-react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, UserCheck } from "lucide-react";
 import { api } from "./api/client";
 import OutcomeBadge from "./components/OutcomeBadge";
 import SkeletonTable from "./components/SkeletonTable";
@@ -71,6 +71,7 @@ export default function LogsPage({ refreshSignal }) {
   const [didFilter, setDidFilter] = useState("");
   const [adminFilter, setAdminFilter] = useState("");
   const [success, setSuccess]     = useState("");
+  const [expandedLogId, setExpandedLogId] = useState(null);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState(null);
 
@@ -86,12 +87,12 @@ export default function LogsPage({ refreshSignal }) {
     return "";
   }, [eventType, category]);
 
-  // Pour les catégories multi-events, filtre côté client sur la page courante
-  const visibleLogs = useMemo(() => {
-    const selectedEvents = CATEGORY_FILTERS[category]?.events ?? [];
-    if (selectedEvents.length <= 1 || effectiveEventType) return logs;
-    return logs.filter((log) => selectedEvents.includes(log.eventType));
-  }, [logs, category, effectiveEventType]);
+  const effectiveEventTypes = useMemo(() => {
+    if (eventType) return [];
+    return CATEGORY_FILTERS[category]?.events ?? [];
+  }, [eventType, category]);
+
+  const visibleLogs = logs;
 
   const loadRef = useRef(0);
   async function load() {
@@ -101,6 +102,7 @@ export default function LogsPage({ refreshSignal }) {
     try {
       const data = await api.searchLogs({
         eventType:     effectiveEventType,
+        eventTypes:    effectiveEventTypes,
         did:           debouncedDid,
         adminUsername: debouncedAdmin,
         success,
@@ -121,7 +123,7 @@ export default function LogsPage({ refreshSignal }) {
   // Recharger sur changement de page ou de filtre serveur
   useEffect(() => {
     load();
-  }, [page, refreshSignal, effectiveEventType, debouncedDid, debouncedAdmin, success]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [page, refreshSignal, category, effectiveEventType, effectiveEventTypes, debouncedDid, debouncedAdmin, success]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Revenir page 0 quand les filtres changent
   useEffect(() => {
@@ -151,7 +153,7 @@ export default function LogsPage({ refreshSignal }) {
         {Object.entries(CATEGORY_FILTERS).map(([key, value]) => (
           <button
             key={key}
-            onClick={() => setCategory(key)}
+            onClick={() => { setPage(0); setEventType(""); setCategory(key); }}
             aria-pressed={category === key}
             className={`rounded-md border px-3 py-1.5 text-xs transition ${
               category === key
@@ -173,7 +175,7 @@ export default function LogsPage({ refreshSignal }) {
           <select
             id="filter-event-type"
             value={eventType}
-            onChange={(e) => setEventType(e.target.value)}
+            onChange={(e) => { setPage(0); setEventType(e.target.value); }}
             className="w-full rounded-md border border-ink/15 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-seal/40"
           >
             <option value="">Tous</option>
@@ -216,7 +218,7 @@ export default function LogsPage({ refreshSignal }) {
           <select
             id="filter-success"
             value={success}
-            onChange={(e) => setSuccess(e.target.value)}
+            onChange={(e) => { setPage(0); setSuccess(e.target.value); }}
             className="w-full rounded-md border border-ink/15 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-seal/40"
           >
             <option value="">Tous</option>
@@ -248,8 +250,24 @@ export default function LogsPage({ refreshSignal }) {
               <tbody>
                 {visibleLogs.map((l) => {
                   const context = auditContext(l);
+                  const isExpanded = expandedLogId === l.id;
+                  const toggleExpanded = () => {
+                    setExpandedLogId(isExpanded ? null : l.id);
+                  };
                   return (
-                    <tr key={l.id} className="border-b border-ink/5 last:border-0 hover:bg-ink/[0.02]">
+                    <Fragment key={l.id}>
+                    <tr
+                      onClick={toggleExpanded}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          toggleExpanded();
+                        }
+                      }}
+                      tabIndex={0}
+                      aria-expanded={isExpanded}
+                      className="cursor-pointer border-b border-ink/5 hover:bg-ink/[0.02] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-seal/40"
+                    >
                       <td className="whitespace-nowrap px-4 py-3 text-xs text-ink/50">
                         {formatDateTime(l.timestamp)}
                       </td>
@@ -279,19 +297,47 @@ export default function LogsPage({ refreshSignal }) {
                         <OutcomeBadge success={l.success} />
                       </td>
                       <td className="max-w-sm px-4 py-3 text-xs text-ink/60">
-                        <div className="truncate" title={l.details || ""}>{l.details || "-"}</div>
-                        {context && (
-                          <details className="mt-1">
-                            <summary className="cursor-pointer text-[11px] text-seal hover:text-seal-dark">
-                              Contexte
-                            </summary>
-                            <pre className="mt-1 max-w-sm whitespace-pre-wrap break-all rounded-md bg-ink/[0.03] p-2 font-mono text-[10px] text-ink/55">
-                              {context}
-                            </pre>
-                          </details>
-                        )}
+                        <div className="flex items-start gap-2">
+                          <span className="mt-0.5 shrink-0 text-ink/35" aria-hidden="true">
+                            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                          </span>
+                          <div className="min-w-0 truncate" title={l.details || ""}>{l.details || "-"}</div>
+                        </div>
                       </td>
                     </tr>
+                    {isExpanded && (
+                      <tr key={`${l.id}-details`} className="border-b border-ink/5 bg-paper/50">
+                        <td colSpan={6} className="px-4 py-4">
+                          <dl className="grid gap-3 text-xs sm:grid-cols-2">
+                            <div>
+                              <dt className="font-medium uppercase tracking-wide text-ink/40">Message complet</dt>
+                              <dd className="mt-1 whitespace-pre-wrap break-words text-ink/75">{l.details || "-"}</dd>
+                            </div>
+                            <div>
+                              <dt className="font-medium uppercase tracking-wide text-ink/40">DID</dt>
+                              <dd className="mt-1 break-all font-mono text-ink/65">{l.deviceDid || "-"}</dd>
+                            </div>
+                            {l.metadata && (
+                              <div className="sm:col-span-2">
+                                <dt className="font-medium uppercase tracking-wide text-ink/40">Métadonnées</dt>
+                                <dd className="mt-1 whitespace-pre-wrap break-all rounded-md bg-white p-3 font-mono text-[11px] text-ink/65">
+                                  {l.metadata}
+                                </dd>
+                              </div>
+                            )}
+                            {!l.metadata && context && (
+                              <div className="sm:col-span-2">
+                                <dt className="font-medium uppercase tracking-wide text-ink/40">Contexte</dt>
+                                <dd className="mt-1 whitespace-pre-wrap break-all rounded-md bg-white p-3 font-mono text-[11px] text-ink/65">
+                                  {context}
+                                </dd>
+                              </div>
+                            )}
+                          </dl>
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   );
                 })}
 

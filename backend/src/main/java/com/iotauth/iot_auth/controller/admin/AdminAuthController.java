@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestHeader;
 
 @RestController
 @RequestMapping(path = "/api/admin/auth")
@@ -22,6 +23,14 @@ public class AdminAuthController {
     @PostMapping(path = "/login")
     public AdminLoginResponse login(@Valid @RequestBody AdminLoginRequest request) {
         return adminAuthService.login(request);
+    }
+
+    @PostMapping(path = "/refresh")
+    public AdminLoginResponse refresh(@RequestHeader("Authorization") String authorization) {
+        if (!authorization.startsWith("Bearer ")) {
+            throw new com.iotauth.iot_auth.exception.InvalidAdminCredentialsException();
+        }
+        return adminAuthService.refresh(authorization.substring(7));
     }
 
     @PostMapping(path = "/register")

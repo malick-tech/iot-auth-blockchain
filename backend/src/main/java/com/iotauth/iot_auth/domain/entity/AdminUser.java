@@ -18,6 +18,8 @@ public class AdminUser {
     @Column(nullable = false, unique = true)
     private String username;
 
+    private String fullName;
+
     @Column(nullable = false)
     private String passwordHash;
 

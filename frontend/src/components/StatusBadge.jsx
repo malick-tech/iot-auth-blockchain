@@ -2,7 +2,6 @@
   ACTIVE:         { label: "Actif",             dot: "bg-emerald-500", text: "text-emerald-800", bg: "bg-emerald-50" },
   PENDING:        { label: "En attente",         dot: "bg-amber-500",   text: "text-amber-800",   bg: "bg-amber-50"   },
   PRE_REGISTERED: { label: "Pré-enregistré",     dot: "bg-sky-500",     text: "text-sky-800",     bg: "bg-sky-50"     },
-  PUBLISHING:     { label: "Publication…",       dot: "bg-purple-400",  text: "text-purple-800",  bg: "bg-purple-50"  },
   SUSPENDED:      { label: "Suspendu",           dot: "bg-orange-500",  text: "text-orange-800",  bg: "bg-orange-50"  },
   REVOKED:        { label: "Révoqué",            dot: "bg-red-500",     text: "text-red-800",     bg: "bg-red-50"     },
 };

@@ -180,6 +180,7 @@ public class OperationalVerificationService {
                 .did(request.getDid())
                 .status(status)
                 .permissions(permissions)
+            .metrics(request.getMetrics())
                 .build();
     }
 

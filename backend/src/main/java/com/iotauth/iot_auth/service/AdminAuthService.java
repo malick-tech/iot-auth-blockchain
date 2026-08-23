@@ -56,6 +56,7 @@ public class AdminAuthService {
         return AdminLoginResponse.builder()
                 .token(token)
                 .username(admin.getUsername())
+                .fullName(admin.getFullName())
                 .expiresIn(adminJwtService.getExpirationSeconds())
                 .build();
     }
@@ -83,6 +84,22 @@ public class AdminAuthService {
         log.info("Token admin blacklisté pour username={}", username);
     }
 
+    public AdminLoginResponse refresh(String token) {
+        if (!adminJwtService.isValid(token)) {
+            throw new InvalidAdminCredentialsException();
+        }
+
+        String username = adminJwtService.extractUsername(token);
+        AdminUser admin = adminUserRepository.findByUsernameAndActiveTrue(username)
+            .orElseThrow(InvalidAdminCredentialsException::new);
+        return AdminLoginResponse.builder()
+                .token(adminJwtService.generateToken(username))
+                .username(username)
+            .fullName(admin.getFullName())
+                .expiresIn(adminJwtService.getExpirationSeconds())
+                .build();
+    }
+
     public void register(com.iotauth.iot_auth.dto.request.AdminRegisterRequest request) {
         if (adminUserRepository.existsByUsername(request.getUsername())) {
             throw new com.iotauth.iot_auth.exception.AdminAlreadyExistsException(request.getUsername());
@@ -90,6 +107,7 @@ public class AdminAuthService {
 
         com.iotauth.iot_auth.domain.entity.AdminUser admin = new com.iotauth.iot_auth.domain.entity.AdminUser();
         admin.setUsername(request.getUsername());
+        admin.setFullName(request.getFullName());
         admin.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         adminUserRepository.save(admin);
 

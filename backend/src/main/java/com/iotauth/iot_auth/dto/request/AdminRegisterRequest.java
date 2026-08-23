@@ -11,6 +11,9 @@ public class AdminRegisterRequest {
     private String username;
 
     @NotBlank
+    private String fullName;
+
+    @NotBlank
     @Size(min = 8, message = "Le mot de passe doit contenir au moins 8 caractères")
     private String password;
 }

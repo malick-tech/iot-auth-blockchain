@@ -94,8 +94,10 @@ public class RevocationService {
         // Pas de transaction Algorand ici : le DID est restÃ© ACTIVE on-chain
         // pendant toute la durÃ©e de la suspension (cf. suspendDevice), donc
         // aucune republication n'est nÃ©cessaire ni cohÃ©rente avec ce principe.
+        LocalDateTime now = LocalDateTime.now();
         device.setStatus(DeviceStatus.ACTIVE);
         device.setSuspensionReason(null);
+        device.setLastSeenAt(now);
         Device savedDevice = deviceRepository.save(device);
 
         restoreActiveDeviceCache(savedDevice);

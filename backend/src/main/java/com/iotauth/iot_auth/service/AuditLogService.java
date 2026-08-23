@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -69,6 +70,7 @@ public class AuditLogService {
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public org.springframework.data.domain.Page<com.iotauth.iot_auth.dto.response.AuthLogResponse> search(
             com.iotauth.iot_auth.domain.enums.EventType eventType,
+            List<EventType> eventTypes,
             String deviceDid,
             String adminUsername,
             Boolean success,
@@ -80,6 +82,9 @@ public class AuditLogService {
 
         if (eventType != null) {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("eventType"), eventType));
+        }
+        if (eventTypes != null && !eventTypes.isEmpty()) {
+            spec = spec.and((root, query, cb) -> root.get("eventType").in(eventTypes));
         }
         if (deviceDid != null && !deviceDid.isBlank()) {
             // Bug 11 fix : échappement des caractères spéciaux LIKE (% et _)
