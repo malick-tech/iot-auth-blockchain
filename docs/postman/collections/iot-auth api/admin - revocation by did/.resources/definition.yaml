@@ -1,5 +1,0 @@
-$kind: collection
-name: 'Admin / Revocation by DID'
-description: |-
-  Statut, suspension, réactivation et révocation par DID.
-order: 3000

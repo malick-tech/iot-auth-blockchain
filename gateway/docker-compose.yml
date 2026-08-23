@@ -8,7 +8,10 @@ services:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
 
   node-red:
-    image: nodered/node-red:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.nodered
+    image: iot-auth-nodered:local
     container_name: iot-auth-node-red
     ports:
       - "1880:1880"
@@ -16,3 +19,5 @@ services:
       - ./node-red-data:/data
     depends_on:
       - mosquitto
+    environment:
+      - GATEWAY_SHARED_SECRET=${IOT_AUTH_GATEWAY_SHARED_SECRET:-dev-local-gateway-secret-change-in-prod}

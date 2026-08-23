@@ -1,11 +1,12 @@
 ﻿import { useState } from "react";
-import { Lock } from "lucide-react";
+import { Eye, EyeOff, Lock } from "lucide-react";
 import { useAuth } from "./useAuth.js";
 
 export default function LoginPage() {
   const { login, loading, error } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -46,13 +47,24 @@ export default function LoginPage() {
           </div>
           <div>
             <label className="block text-xs font-medium text-ink/60 mb-1">Mot de passe</label>
-            <input
-              required
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-ink/15 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-seal/40"
-            />
+            <div className="relative">
+              <input
+                required
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-md border border-ink/15 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-seal/40"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((value) => !value)}
+                title={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-md text-ink/45 hover:text-ink focus:outline-none focus:ring-2 focus:ring-seal/40"
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
           </div>
           <button
             type="submit"

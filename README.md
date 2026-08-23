@@ -6,6 +6,7 @@ Projet de mémoire pour l'authentification sécurisée des dispositifs IoT avec 
 
 - `backend/` : API Spring Boot, logique d'enrôlement, authentification, VC/JWT, révocation, audit, intégration PostgreSQL/Redis/Algorand.
 - `frontend/` : console d'administration React/Vite pour piloter les dispositifs, consulter l'état système et lire les journaux d'audit.
+- `devices/` : simulateurs de dispositifs IoT persistants qui s'enrolent puis communiquent en continu.
 - `gateway/` : gateway Node-RED et scripts de test pour les flux opérationnels IoT.
 - `smart-contract/` : contrat Algorand utilisé pour publier et résoudre les DID sur LocalNet.
 - `backend/compose.yaml` : PostgreSQL, Redis, pgAdmin, Redis Commander et Node-RED.
@@ -80,6 +81,42 @@ Le profil `dev` utilise PostgreSQL, pas H2 :
 Redis sert de cache opérationnel rapide pour les informations nécessaires à la gateway : statut du dispositif, clé publique, permissions et compteurs d'échecs.
 
 H2 reste réservé aux tests automatisés.
+
+## Supervision d'inactivite
+
+Le backend surveille automatiquement les dispositifs actifs. Si un dispositif `ACTIVE` ne communique plus pendant le delai imparti, le systeme le passe en `SUSPENDED`, supprime son cache Redis et ecrit un log avec l'acteur `SYSTEM`.
+
+Parametres principaux :
+
+```properties
+iot.auth.inactivity-monitor.enabled=true
+iot.auth.inactivity-monitor.timeout-seconds=90
+iot.auth.inactivity-monitor.scan-interval-ms=30000
+```
+
+Chaque communication operationnelle autorisee met a jour `lastSeenAt`. Si le simulateur est arrete ou si la gateway ne recoit plus de messages, le device sera suspendu automatiquement apres le timeout.
+
+## Simulation de dispositifs
+
+Le dispositif n'est pas cree directement par le script. Le flux respecte la separation des roles :
+
+1. L'administrateur pre-enregistre le dispositif dans la console avec un numero de serie unique.
+2. Le simulateur est lance avec ce meme numero de serie, qui lui est propre.
+3. Le simulateur parle uniquement a la gateway via MQTT.
+4. La gateway relaie le first-contact, le challenge-response et le renouvellement JWT vers le backend.
+5. Le simulateur obtient son VC/JWT PoP, puis publie en continu vers la gateway.
+
+Installation des dependances Python :
+
+```powershell
+pip install -r devices/requirements.txt
+```
+
+Exemple de lancement apres pre-enregistrement du serial `IOT-TEMP-001` :
+
+```powershell
+python devices/device_simulator.py --serial IOT-TEMP-001 --type capteur-temperature --location Ziguinchor-Lab
+```
 
 ## Logs et Audit
 

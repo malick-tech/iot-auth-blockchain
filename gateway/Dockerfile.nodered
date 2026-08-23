@@ -1,0 +1,16 @@
+FROM nodered/node-red:4.0
+
+# Copier package.json et node_modules pré-installés dans l'image.
+# Les modules (ioredis, tweetnacl) ont été installés localement via :
+#   docker cp iot-auth-nodered-1:/data/node_modules ./node-red-data/
+# et sont commités dans gateway/node-red-data/node_modules/
+#
+# Si les modules ne sont pas présents localement, lancer :
+#   npm install --prefix gateway/node-red-data --omit=dev
+# depuis un environnement avec accès réseau, puis rebuilder l'image.
+
+COPY node-red-data/package.json /data/package.json
+COPY node-red-data/package-lock.json /data/package-lock.json
+COPY node-red-data/node_modules /data/node_modules
+
+# Les flows, settings et autres fichiers sont montés via volume au runtime.

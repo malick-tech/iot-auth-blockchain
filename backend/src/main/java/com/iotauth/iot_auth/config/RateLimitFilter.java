@@ -68,10 +68,34 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     private String resolveClientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
+        // Bug 7 fix : X-Forwarded-For est spoofable si aucun reverse proxy de confiance
+        // ne se trouve devant le backend. On lit ce header uniquement si l'adresse
+        // distante correspond à un loopback ou à un range privé (proxy interne),
+        // ce qui est le cas dans Docker Compose (gateway → backend via réseau interne).
+        // Dans tous les autres cas on utilise l'adresse de connexion TCP directe.
+        String remoteAddr = request.getRemoteAddr();
+        if (isTrustedProxy(remoteAddr)) {
+            String forwarded = request.getHeader("X-Forwarded-For");
+            if (forwarded != null && !forwarded.isBlank()) {
+                // Prendre la première IP de la chaîne (client d'origine)
+                return forwarded.split(",")[0].trim();
+            }
         }
-        return request.getRemoteAddr();
+        return remoteAddr;
+    }
+
+    /**
+     * Retourne true si l'adresse TCP directe est celle d'un proxy interne de confiance
+     * (loopback 127.x, IPv6 loopback ::1, ou plages RFC-1918/RFC-4193 privées).
+     * Dans Docker Compose, le gateway bridge appelle le backend sur le réseau interne
+     * (172.x ou 192.168.x), ce qui correspond à ces plages.
+     */
+    private boolean isTrustedProxy(String remoteAddr) {
+        if (remoteAddr == null) return false;
+        return remoteAddr.equals("127.0.0.1")
+                || remoteAddr.equals("::1")
+                || remoteAddr.startsWith("10.")
+                || remoteAddr.startsWith("172.")
+                || remoteAddr.startsWith("192.168.");
     }
 }

@@ -32,7 +32,7 @@ secrets/
 *.credentials.json
 flows_cred.json
 
-# Obsolete/local compose copy. Use root compose.yaml instead.
+# Obsolete/local compose copy. Use backend/compose.yaml instead.
 /backend/docker-compose.yml
 
 # Node / frontend
@@ -50,6 +50,7 @@ gateway/node-red-data/flows_cred.json
 # Python
 __pycache__/
 *.py[cod]
+devices/state/
 
 # Logs
 *.log

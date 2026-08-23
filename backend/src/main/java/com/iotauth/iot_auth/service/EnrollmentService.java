@@ -141,10 +141,18 @@ public class EnrollmentService {
                 });
 
         if (device.getStatus() != DeviceStatus.PRE_REGISTERED) {
+            // Un device en PUBLISHING indique un crash après la publication Algorand
+            // mais avant le commit ACTIVE. Ce cas doit être traité par l'admin.
+            if (device.getStatus() == DeviceStatus.PUBLISHING) {
+                auditChallengeFailed(request.getDid(), "Enrolement incomplet detecte (statut PUBLISHING) - intervention admin requise");
+                throw new InvalidSignatureException(
+                    "Enrolement incomplet pour did=" + request.getDid() +
+                    " : le DID a peut-etre deja ete publie on-chain. Contactez l'administrateur."
+                );
+            }
             auditChallengeFailed(request.getDid(), "Statut invalide : " + device.getStatus());
             throw InvalidDeviceStatusException.expected(DeviceStatus.PRE_REGISTERED, device.getStatus());
         }
-
         boolean sigmaOneValid = CryptoUtils.verifyEd25519(
                 device.getPublicKey(),
                 nonce,
@@ -175,6 +183,12 @@ public class EnrollmentService {
                 "Verifiable Credential emis : " + vc.getVcId()
         );
         log.info("VC emis - vcId={}", vc.getVcId());
+
+        // Marquage transitoire PUBLISHING : si le process crashe après la confirmation
+        // Algorand mais avant le flush ACTIVE, l'admin verra ce statut en base et pourra
+        // réactiver le device manuellement — évitant ainsi un DID orphelin on-chain.
+        device.setStatus(DeviceStatus.PUBLISHING);
+        deviceRepository.saveAndFlush(device);
 
         String txId = algorandService.publishDidDocument(
                 device.getDid(),

@@ -2,18 +2,18 @@
     {
         "id": "d4fab3eceb603e63",
         "type": "tab",
-        "label": "Flux 1",
+        "label": "IoT Auth Gateway",
         "disabled": false,
-        "info": "",
+        "info": "Flow opérationnel IoT Auth.\n\nChemin cache HIT  : mqtt in → Parser → Lire cache (Redis) → Switch → Vérifier localement → mqtt out\nChemin cache MISS : Switch → Préparer requête → POST /api/operational/verify → Formater réponse → mqtt out\nLog SOC           : Vérifier localement (sortie 3) → POST /api/operational/log-cache-hit",
         "env": []
     },
     {
         "id": "dfb83bddd893fa23",
         "type": "mqtt-broker",
-        "name": "mosquitto ",
+        "name": "mosquitto",
         "broker": "mosquitto",
         "port": 1883,
-        "clientid": "",
+        "clientid": "node-red-gateway",
         "autoConnect": true,
         "usetls": false,
         "protocolVersion": 4,
@@ -39,28 +39,20 @@
         "sessionExpiry": ""
     },
     {
-        "id": "713276c61bd2a662",
-        "type": "redis-config",
-        "name": "Local",
-        "options": "{   \"host\": \"host.docker.internal\",   \"port\": 6379 }",
-        "cluster": false,
-        "optionsType": "json"
-    },
-    {
         "id": "2916ed5d240c12ae",
         "type": "mqtt in",
         "z": "d4fab3eceb603e63",
         "name": "Requête opérationnelle",
         "topic": "iot/+/operational/request",
-        "qos": "0",
+        "qos": "1",
         "datatype": "auto-detect",
         "broker": "dfb83bddd893fa23",
         "nl": false,
         "rap": true,
         "rh": 0,
         "inputs": 0,
-        "x": 180,
-        "y": 220,
+        "x": 160,
+        "y": 120,
         "wires": [
             [
                 "773a0acadfd3a6b6"
@@ -72,15 +64,15 @@
         "type": "function",
         "z": "d4fab3eceb603e63",
         "name": "Parser la requête",
-        "func": "// Le topic est de la forme: iot/{did}/operational/request\n// msg.payload contient le corps JSON envoyé par le dispositif\nconst topicParts = msg.topic.split('/');\nconst didFromTopic = topicParts[1];\n\nlet body;\ntry {\n    body = typeof msg.payload === 'string' ? JSON.parse(msg.payload) : msg.payload;\n} catch (e) {\n    node.warn('Payload JSON invalide: ' + msg.payload);\n    return null;\n}\n\nmsg.did = didFromTopic;\nmsg.jwt = body.jwt;\nmsg.timestamp = body.timestamp;\nmsg.proofSignature = body.proofSignature;\nmsg.requestedPermission = body.requestedPermission || null;\n\n// Clé Redis attendue par le cache HIT\nmsg.redisKey = 'device:' + didFromTopic;\n\nreturn msg;",
+        "func": "// Le topic est de la forme: iot/{did}/operational/request\n// msg.payload contient le corps JSON envoyé par le dispositif\nconst topicParts = msg.topic.split('/');\nif (topicParts.length < 4) {\n    node.warn('[Parser] Topic malformé ignoré : ' + msg.topic);\n    return null;\n}\n\nconst didFromTopic = topicParts[1];\n\nlet body;\ntry {\n    body = typeof msg.payload === 'string' ? JSON.parse(msg.payload) : msg.payload;\n} catch (e) {\n    node.warn('[Parser] Payload JSON invalide pour did=' + didFromTopic + ' : ' + e.message);\n    return null;\n}\n\nmsg.did              = didFromTopic;\nmsg.jwt              = body.jwt;\nmsg.timestamp        = body.timestamp;\nmsg.proofSignature   = body.proofSignature;\nmsg.requestedPermission = body.requestedPermission || null;\n\n// Clé Redis du cache device\nmsg.redisKey = 'device:' + didFromTopic;\n\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 430,
-        "y": 460,
+        "x": 330,
+        "y": 200,
         "wires": [
             [
                 "d3bb58c10fa0b11d"
@@ -91,21 +83,21 @@
         "id": "d3bb58c10fa0b11d",
         "type": "function",
         "z": "d4fab3eceb603e63",
-        "name": "Lire cache device",
-        "func": "const redis = new Redis({\n    host: 'host.docker.internal',\n    port: 6379\n});\n\nconst data = await redis.hgetall(msg.redisKey);\nredis.disconnect();\n\nmsg.cache = data;\nmsg.cacheHit = data && Object.keys(data).length > 0;\n\nreturn msg;",
+        "name": "Lire cache device (Redis)",
+        "func": "// Bug 2 fix : connexion Redis persistante initialisée une seule fois dans\n// l'onglet 'On Start' pour éviter la création/destruction à chaque message.\nconst redis = context.get('redisClient');\nif (!redis) {\n    node.warn('[Cache] Client Redis non initialisé — retrying...');\n    msg.cacheHit = false;\n    return msg;\n}\n\ntry {\n    const data = await redis.hgetall(msg.redisKey);\n\n    // Bug 3 fix : forcer un booléen pour que le Switch fonctionne correctement.\n    // hgetall retourne null si la clé n'existe pas — sans le !! le switch perd\n    // le message quand data === null (ni true ni false en Node-RED).\n    msg.cache    = data || {};\n    msg.cacheHit = !!(data && Object.keys(data).length > 0);\n} catch (e) {\n    node.warn('[Cache] Erreur Redis pour did=' + msg.did + ' : ' + e.message);\n    msg.cache    = {};\n    msg.cacheHit = false;\n}\n\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
-        "initialize": "",
-        "finalize": "",
+        "initialize": "// Bug 2 fix : créer la connexion Redis une seule fois au démarrage du nœud.\n// Dans Node-RED, require() n'est pas disponible dans initialize —\n// on utilise le module déclaré dans 'libs' (var: Redis, module: ioredis).\nconst client = new Redis({\n    host: 'host.docker.internal',\n    port: 6379,\n    lazyConnect: false,\n    retryStrategy: (times) => Math.min(times * 100, 3000)\n});\nclient.on('error', (err) => node.warn('[Cache] Redis error: ' + err.message));\nclient.on('ready', ()    => node.log('[Cache] Redis connecté'));\ncontext.set('redisClient', client);",
+        "finalize": "// Fermer proprement la connexion quand le nœud est arrêté\nconst redis = context.get('redisClient');\nif (redis) {\n    redis.disconnect();\n    context.set('redisClient', null);\n}",
         "libs": [
             {
                 "var": "Redis",
                 "module": "ioredis"
             }
         ],
-        "x": 450,
-        "y": 140,
+        "x": 510,
+        "y": 120,
         "wires": [
             [
                 "6f61325f57861067"
@@ -127,11 +119,11 @@
                 "t": "false"
             }
         ],
-        "checkall": "true",
+        "checkall": "false",
         "repair": false,
         "outputs": 2,
-        "x": 660,
-        "y": 300,
+        "x": 680,
+        "y": 180,
         "wires": [
             [
                 "9dd4320f3dd061ca"
@@ -142,93 +134,11 @@
         ]
     },
     {
-        "id": "db1fec75bf9768d1",
-        "type": "function",
-        "z": "d4fab3eceb603e63",
-        "name": "Préparer requête backend",
-        "func": "msg.payload = {\n    did: msg.did,\n    jwt: msg.jwt,\n    timestamp: msg.timestamp,\n    proofSignature: msg.proofSignature,\n    requestedPermission: msg.requestedPermission\n};\n\nmsg.headers = { 'Content-Type': 'application/json' };\n\nreturn msg;",
-        "outputs": 1,
-        "timeout": 0,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 950,
-        "y": 460,
-        "wires": [
-            [
-                "2277606df5f72455"
-            ]
-        ]
-    },
-    {
-        "id": "2277606df5f72455",
-        "type": "http request",
-        "z": "d4fab3eceb603e63",
-        "name": "Appel /operational/verify",
-        "method": "POST",
-        "ret": "obj",
-        "paytoqs": "ignore",
-        "url": "http://host.docker.internal:8083/api/operational/verify",
-        "tls": "",
-        "persist": false,
-        "proxy": "",
-        "insecureHTTPParser": false,
-        "authType": "",
-        "senderr": false,
-        "headers": [],
-        "x": 1130,
-        "y": 560,
-        "wires": [
-            [
-                "38ffe799ea02142f"
-            ]
-        ]
-    },
-    {
-        "id": "38ffe799ea02142f",
-        "type": "function",
-        "z": "d4fab3eceb603e63",
-        "name": "Formater réponse (MISS)",
-        "func": "msg.topic = 'iot/' + msg.did + '/operational/response';\nmsg.payload = msg.payload; // déjà la réponse JSON du backend (authorized, status, permissions, reason)\n\nreturn msg;",
-        "outputs": 1,
-        "timeout": 0,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 1290,
-        "y": 460,
-        "wires": [
-            [
-                "b466591c91d56e83"
-            ]
-        ]
-    },
-    {
-        "id": "b466591c91d56e83",
-        "type": "mqtt out",
-        "z": "d4fab3eceb603e63",
-        "name": "Réponse au dispositif",
-        "topic": "",
-        "qos": "0",
-        "retain": "",
-        "respTopic": "",
-        "contentType": "",
-        "userProps": "",
-        "correl": "",
-        "expiry": "",
-        "broker": "dfb83bddd893fa23",
-        "x": 1380,
-        "y": 160,
-        "wires": []
-    },
-    {
         "id": "9dd4320f3dd061ca",
         "type": "function",
         "z": "d4fab3eceb603e63",
         "name": "Vérifier localement (HIT)",
-        "func": "function base32Decode(str) {\n    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';\n    let bits = 0, value = 0;\n    const output = [];\n    for (const char of str.toUpperCase()) {\n        const idx = alphabet.indexOf(char);\n        if (idx === -1) continue;\n        value = (value << 5) | idx;\n        bits += 5;\n        if (bits >= 8) {\n            output.push((value >>> (bits - 8)) & 0xFF);\n            bits -= 8;\n        }\n    }\n    return Buffer.from(output);\n}\n\nfunction base64UrlDecode(str) {\n    let s = str.replace(/-/g, '+').replace(/_/g, '/');\n    while (s.length % 4) s += '=';\n    return Buffer.from(s, 'base64');\n}\n\nfunction decodeJwtPayload(jwt) {\n    const parts = jwt.split('.');\n    if (parts.length !== 3) throw new Error('Format JWT invalide');\n    const json = base64UrlDecode(parts[1]).toString('utf8');\n    return JSON.parse(json);\n}\n\nfunction verifyJwtSignature(jwt, issuerPublicKeyBase32) {\n    const parts = jwt.split('.');\n    if (parts.length !== 3 || !issuerPublicKeyBase32) return false;\n    const signingInput = Buffer.from(parts[0] + '.' + parts[1], 'utf8');\n    const signature = base64UrlDecode(parts[2]);\n    const issuerPublicKey = base32Decode(issuerPublicKeyBase32);\n    return nacl.sign.detached.verify(signingInput, signature, issuerPublicKey);\n}\n\nfunction base64Decode(str) {\n    return Buffer.from(str, 'base64');\n}\n\nfunction sameBytes(a, b) {\n    return a.length === b.length && a.every((value, index) => value === b[index]);\n}\n\nfunction buildLogMsg(did, authorized, reason, requestedPermission) {\n    return {\n        payload: { did, authorized, reason: reason || null, requestedPermission: requestedPermission || null },\n        headers: {\n            'Content-Type': 'application/json',\n            'X-Gateway-Secret': env.get('GATEWAY_SHARED_SECRET') || ''\n        }\n    };\n}\n\ntry {\n    msg.topic = 'iot/' + msg.did + '/operational/response';\n\n    const cache = msg.cache;\n    const publicKeyBytes = base32Decode(cache.publicKey);\n\n    if (!verifyJwtSignature(msg.jwt, cache.issuerPublicKey)) {\n        msg.payload = { authorized: false, reason: 'Signature JWT PoP invalide (cache)' };\n        return [null, msg, buildLogMsg(msg.did, false, 'Signature JWT PoP invalide (cache)', msg.requestedPermission)];\n    }\n\n    const claims = decodeJwtPayload(msg.jwt);\n\n    if (claims.sub !== msg.did) {\n        msg.payload = { authorized: false, reason: 'DID incoherent entre topic MQTT et JWT (cache)' };\n        return [null, msg, buildLogMsg(msg.did, false, 'DID incoherent entre topic MQTT et JWT (cache)', msg.requestedPermission)];\n    }\n\n    if (cache.issuerDid && claims.iss !== cache.issuerDid) {\n        msg.payload = { authorized: false, reason: 'Issuer JWT inattendu (cache)' };\n        return [null, msg, buildLogMsg(msg.did, false, 'Issuer JWT inattendu (cache)', msg.requestedPermission)];\n    }\n\n    const cnfKey = claims.cnf && claims.cnf.jwk && claims.cnf.jwk.x;\n    if (!cnfKey || !sameBytes(base64Decode(cnfKey), publicKeyBytes)) {\n        msg.payload = { authorized: false, reason: 'JWT PoP non lie a la cle du dispositif (cache)' };\n        return [null, msg, buildLogMsg(msg.did, false, 'JWT PoP non lie a la cle du dispositif (cache)', msg.requestedPermission)];\n    }\n\n    const now = Math.floor(Date.now() / 1000);\n    if (claims.exp < now) {\n        msg.payload = { authorized: false, reason: 'JWT PoP expire (cache)' };\n        return [null, msg, buildLogMsg(msg.did, false, 'JWT PoP expire (cache)', msg.requestedPermission)];\n    }\n\n    if (Math.abs(now - msg.timestamp) > 30) {\n        msg.payload = { authorized: false, reason: 'Preuve de possession non fraiche (cache)' };\n        return [null, msg, buildLogMsg(msg.did, false, 'Preuve de possession non fraiche (cache)', msg.requestedPermission)];\n    }\n\n    const proofMessage = claims.jti + ':' + msg.timestamp;\n    const messageBytes = Buffer.from(proofMessage, 'utf8');\n    const signatureBytes = base64UrlDecode(msg.proofSignature);\n\n    const isValid = nacl.sign.detached.verify(messageBytes, signatureBytes, publicKeyBytes);\n\n    if (!isValid) {\n        msg.payload = { authorized: false, reason: 'Preuve de possession invalide (cache)' };\n        return [null, msg, buildLogMsg(msg.did, false, 'Preuve de possession invalide (cache)', msg.requestedPermission)];\n    }\n\n    const permissions = (cache.permissions || '').split(',').filter(p => p.length > 0);\n\n    if (msg.requestedPermission && !permissions.includes(msg.requestedPermission)) {\n        const reason = 'Permission non accordee : ' + msg.requestedPermission;\n        msg.payload = { authorized: false, reason };\n        const logMsg = buildLogMsg(msg.did, false, reason, msg.requestedPermission);\n        logMsg.payload.violationType = 'PERMISSION_VIOLATION';\n        return [null, msg, logMsg];\n    }\n\n    msg.payload = {\n        authorized: true,\n        did: msg.did,\n        status: cache.status,\n        permissions: permissions\n    };\n    return [msg, null, buildLogMsg(msg.did, true, null, msg.requestedPermission)];\n\n} catch (e) {\n    msg.topic = 'iot/' + msg.did + '/operational/response';\n    const reason = 'Erreur de verification locale : ' + e.message;\n    msg.payload = { authorized: false, reason };\n    return [null, msg, buildLogMsg(msg.did, false, reason, msg.requestedPermission)];\n}",
+        "func": "// ─────────────────────────────────────────────────────────────────────────\n// Helpers\n// ─────────────────────────────────────────────────────────────────────────\n\nfunction base32Decode(str) {\n    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';\n    let bits = 0, value = 0;\n    const output = [];\n    for (const char of str.toUpperCase()) {\n        const idx = alphabet.indexOf(char);\n        if (idx === -1) continue;\n        value = (value << 5) | idx;\n        bits += 5;\n        if (bits >= 8) {\n            output.push((value >>> (bits - 8)) & 0xFF);\n            bits -= 8;\n        }\n    }\n    return Buffer.from(output);\n}\n\n// base64url sans padding → Buffer\nfunction base64UrlDecode(str) {\n    let s = str.replace(/-/g, '+').replace(/_/g, '/');\n    while (s.length % 4) s += '=';\n    return Buffer.from(s, 'base64');\n}\n\n// base64 standard (utilisé pour cnf.jwk.x dans le JWT)\nfunction base64Decode(str) {\n    return Buffer.from(str, 'base64');\n}\n\nfunction decodeJwtPayload(jwt) {\n    const parts = jwt.split('.');\n    if (parts.length !== 3) throw new Error('Format JWT invalide');\n    return JSON.parse(base64UrlDecode(parts[1]).toString('utf8'));\n}\n\nfunction verifyJwtSignature(jwt, issuerPublicKeyBase32) {\n    if (!issuerPublicKeyBase32) return false;\n    const parts = jwt.split('.');\n    if (parts.length !== 3) return false;\n    const signingInput  = Buffer.from(parts[0] + '.' + parts[1], 'utf8');\n    const signature     = base64UrlDecode(parts[2]);\n    const issuerPubKey  = base32Decode(issuerPublicKeyBase32);\n    return nacl.sign.detached.verify(signingInput, signature, issuerPubKey);\n}\n\nfunction sameBytes(a, b) {\n    return a.length === b.length && a.every((v, i) => v === b[i]);\n}\n\n// Bug 5 fix : lire le secret depuis process.env (variable système Docker)\n// et non via env.get() qui lit les variables du nœud Node-RED uniquement.\nfunction buildLogMsg(did, authorized, reason, requestedPermission, violationType) {\n    return {\n        payload: {\n            did,\n            authorized,\n            reason:              reason || null,\n            requestedPermission: requestedPermission || null,\n            violationType:       violationType || null\n        },\n        headers: {\n            'Content-Type':    'application/json',\n            'X-Gateway-Secret': process.env.GATEWAY_SHARED_SECRET || ''\n        }\n    };\n}\n\n// ─────────────────────────────────────────────────────────────────────────\n// Vérification principale\n// ─────────────────────────────────────────────────────────────────────────\n\ntry {\n    msg.topic = 'iot/' + msg.did + '/operational/response';\n    const cache = msg.cache;\n\n    // 1. Signature JWT vérifiée contre la clé publique de l'issuer (admin)\n    if (!verifyJwtSignature(msg.jwt, cache.issuerPublicKey)) {\n        const reason = 'Signature JWT PoP invalide (cache HIT)';\n        msg.payload = { authorized: false, reason };\n        return [null, msg, buildLogMsg(msg.did, false, reason, msg.requestedPermission)];\n    }\n\n    const claims = decodeJwtPayload(msg.jwt);\n\n    // 2. Le DID du topic MQTT doit correspondre au subject du JWT\n    if (claims.sub !== msg.did) {\n        const reason = 'DID incohérent entre topic MQTT et JWT (cache HIT)';\n        msg.payload = { authorized: false, reason };\n        return [null, msg, buildLogMsg(msg.did, false, reason, msg.requestedPermission)];\n    }\n\n    // 3. Vérification de l'issuer si présent dans le cache\n    if (cache.issuerDid && claims.iss !== cache.issuerDid) {\n        const reason = 'Issuer JWT inattendu (cache HIT)';\n        msg.payload = { authorized: false, reason };\n        return [null, msg, buildLogMsg(msg.did, false, reason, msg.requestedPermission)];\n    }\n\n    // 4. La clé publique dans cnf.jwk doit correspondre à celle du cache\n    const cnfX = claims.cnf && claims.cnf.jwk && claims.cnf.jwk.x;\n    const devicePubKeyBytes = base32Decode(cache.publicKey);\n    if (!cnfX || !sameBytes(base64Decode(cnfX), devicePubKeyBytes)) {\n        const reason = 'JWT PoP non lié à la clé du dispositif (cache HIT)';\n        msg.payload = { authorized: false, reason };\n        return [null, msg, buildLogMsg(msg.did, false, reason, msg.requestedPermission)];\n    }\n\n    // 5. Expiration du JWT\n    const now = Math.floor(Date.now() / 1000);\n    if (claims.exp < now) {\n        const reason = 'JWT PoP expiré (cache HIT)';\n        msg.payload = { authorized: false, reason };\n        return [null, msg, buildLogMsg(msg.did, false, reason, msg.requestedPermission)];\n    }\n\n    // 6. Fraîcheur du timestamp de la preuve de possession (±30s)\n    if (Math.abs(now - msg.timestamp) > 30) {\n        const reason = 'Preuve de possession non fraîche (cache HIT)';\n        msg.payload = { authorized: false, reason };\n        return [null, msg, buildLogMsg(msg.did, false, reason, msg.requestedPermission)];\n    }\n\n    // 7. Vérification de la signature de la preuve : sign(jti:timestamp)\n    const proofMessage   = Buffer.from(claims.jti + ':' + msg.timestamp, 'utf8');\n    const proofSig       = base64UrlDecode(msg.proofSignature);\n    if (!nacl.sign.detached.verify(proofMessage, proofSig, devicePubKeyBytes)) {\n        const reason = 'Preuve de possession invalide (cache HIT)';\n        msg.payload = { authorized: false, reason };\n        return [null, msg, buildLogMsg(msg.did, false, reason, msg.requestedPermission)];\n    }\n\n    // 8. Vérification de la permission\n    const permissions = (cache.permissions || '').split(',').filter(p => p.length > 0);\n    if (msg.requestedPermission && !permissions.includes(msg.requestedPermission)) {\n        const reason = 'Permission non accordée : ' + msg.requestedPermission;\n        msg.payload = { authorized: false, reason };\n        return [null, msg, buildLogMsg(msg.did, false, reason, msg.requestedPermission, 'PERMISSION_VIOLATION')];\n    }\n\n    // ✅ Autorisé\n    msg.payload = {\n        authorized:  true,\n        did:         msg.did,\n        status:      cache.status,\n        permissions: permissions\n    };\n    return [msg, null, buildLogMsg(msg.did, true, null, msg.requestedPermission)];\n\n} catch (e) {\n    const reason = 'Erreur de vérification locale (cache HIT) : ' + e.message;\n    node.error('[HIT] ' + reason);\n    msg.topic   = 'iot/' + msg.did + '/operational/response';\n    msg.payload = { authorized: false, reason };\n    return [null, msg, buildLogMsg(msg.did, false, reason, msg.requestedPermission)];\n}",
         "outputs": 3,
         "timeout": 0,
         "noerr": 0,
@@ -240,7 +150,7 @@
                 "module": "tweetnacl"
             }
         ],
-        "x": 910,
+        "x": 1010,
         "y": 80,
         "wires": [
             [
@@ -253,6 +163,88 @@
                 "58793b98c12abb2c"
             ]
         ]
+    },
+    {
+        "id": "db1fec75bf9768d1",
+        "type": "function",
+        "z": "d4fab3eceb603e63",
+        "name": "Préparer requête backend (MISS)",
+        "func": "// Chemin cache MISS : transmettre la requête au backend Spring Boot\nmsg.payload = {\n    did:                 msg.did,\n    jwt:                 msg.jwt,\n    timestamp:           msg.timestamp,\n    proofSignature:      msg.proofSignature,\n    requestedPermission: msg.requestedPermission\n};\nmsg.headers = { 'Content-Type': 'application/json' };\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 960,
+        "y": 340,
+        "wires": [
+            [
+                "2277606df5f72455"
+            ]
+        ]
+    },
+    {
+        "id": "2277606df5f72455",
+        "type": "http request",
+        "z": "d4fab3eceb603e63",
+        "name": "POST /api/operational/verify",
+        "method": "POST",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "http://host.docker.internal:8083/api/operational/verify",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 1360,
+        "y": 400,
+        "wires": [
+            [
+                "38ffe799ea02142f"
+            ]
+        ]
+    },
+    {
+        "id": "38ffe799ea02142f",
+        "type": "function",
+        "z": "d4fab3eceb603e63",
+        "name": "Formater réponse (MISS)",
+        "func": "// Bug 6 fix : msg.did est préservé depuis le parser à travers tout le flow.\n// On s'assure tout de même qu'il est présent avant de construire le topic.\nif (!msg.did) {\n    node.warn('[MISS] msg.did absent à la réponse backend — réponse ignorée');\n    return null;\n}\nmsg.topic = 'iot/' + msg.did + '/operational/response';\n// msg.payload contient déjà la réponse JSON parsée du backend (authorized, status, permissions, reason)\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1450,
+        "y": 260,
+        "wires": [
+            [
+                "b466591c91d56e83"
+            ]
+        ]
+    },
+    {
+        "id": "b466591c91d56e83",
+        "type": "mqtt out",
+        "z": "d4fab3eceb603e63",
+        "name": "Réponse au dispositif",
+        "topic": "",
+        "qos": "1",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "dfb83bddd893fa23",
+        "x": 1480,
+        "y": 100,
+        "wires": []
     },
     {
         "id": "58793b98c12abb2c",
@@ -270,8 +262,8 @@
         "authType": "",
         "senderr": false,
         "headers": [],
-        "x": 1020,
-        "y": 320,
+        "x": 1120,
+        "y": 260,
         "wires": [
             []
         ]

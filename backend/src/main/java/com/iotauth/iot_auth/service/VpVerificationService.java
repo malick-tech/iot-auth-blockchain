@@ -1,4 +1,4 @@
-﻿package com.iotauth.iot_auth.service;
+package com.iotauth.iot_auth.service;
 
 import com.iotauth.iot_auth.exception.InvalidSignatureException;
 import com.iotauth.iot_auth.util.CryptoUtils;

@@ -1,4 +1,4 @@
-﻿package com.iotauth.iot_auth.domain.enums;
+package com.iotauth.iot_auth.domain.enums;
 
 public enum EventType {
     // Admin Authentication
@@ -33,6 +33,7 @@ public enum EventType {
 
     // Device Status Changes
     DEVICE_SUSPENDED,
+    DEVICE_AUTO_SUSPENDED,
     DEVICE_REACTIVATED,
     DEVICE_REVOKED,
     REVOKED_DEVICE_ACCESS_ATTEMPT,

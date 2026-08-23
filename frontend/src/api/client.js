@@ -32,7 +32,10 @@ async function request(path, options = {}) {
     }
   }
 
-  if (response.status === 401) {
+  // Bug 16 fix : n'appeler onUnauthorized (logout automatique) que si on n'est PAS
+  // sur l'endpoint de login. Un 401 sur /login est un mauvais mot de passe — pas une
+  // session expirée — et ne doit pas déclencher un logout sur une session existante.
+  if (response.status === 401 && !path.includes("/auth/login")) {
     onUnauthorized();
   }
 
@@ -88,5 +91,11 @@ export const api = {
     request(`/api/admin/devices/${encodeURIComponent(did)}/revoke`, {
       method: "PATCH",
       body: JSON.stringify({ reason }),
+    }),
+
+  logout: () =>
+    request("/api/admin/auth/logout", { method: "POST" }).catch(() => {
+      // Logout côté serveur best-effort : même si l'appel échoue (réseau, token déjà expiré),
+      // on nettoie la session locale dans tous les cas.
     }),
 };
