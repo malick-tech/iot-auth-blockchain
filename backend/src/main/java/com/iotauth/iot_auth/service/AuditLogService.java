@@ -82,12 +82,16 @@ public class AuditLogService {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("eventType"), eventType));
         }
         if (deviceDid != null && !deviceDid.isBlank()) {
-            spec = spec.and((root, query, cb) -> cb.like(root.get("deviceDid"), "%" + deviceDid + "%"));
+            // Bug 11 fix : échappement des caractères spéciaux LIKE (% et _)
+            // pour éviter qu'un filtre "did:algo:%" ne retourne tous les devices.
+            final String escapedDid = escapeLike(deviceDid);
+            spec = spec.and((root, query, cb) -> cb.like(root.get("deviceDid"), "%" + escapedDid + "%"));
         }
         if (adminUsername != null && !adminUsername.isBlank()) {
+            final String escapedAdmin = escapeLike(adminUsername);
             spec = spec.and((root, query, cb) -> cb.like(
                     cb.lower(root.get("adminUsername")),
-                    "%" + adminUsername.toLowerCase() + "%"
+                    "%" + escapedAdmin.toLowerCase() + "%"
             ));
         }
         if (success != null) {
@@ -112,5 +116,16 @@ public class AuditLogService {
                         .metadata(log.getMetadata())
                         .timestamp(log.getTimestamp())
                         .build());
+    }
+
+    /**
+     * Échappe les caractères spéciaux SQL LIKE (% et _) pour qu'ils soient
+     * traités comme des littéraux et non comme des wildcards.
+     */
+    private String escapeLike(String value) {
+        return value
+                .replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
     }
 }

@@ -88,7 +88,8 @@ public class OperationalVerificationService {
         if (deviceOpt.isEmpty()) {
             return rejected(request.getDid(), "Dispositif introuvable en base");
         }
-        DeviceStatus dbStatus = deviceOpt.get().getStatus();
+        Device device = deviceOpt.get();
+        DeviceStatus dbStatus = device.getStatus();
         if (dbStatus != DeviceStatus.ACTIVE) {
             if (dbStatus == DeviceStatus.REVOKED) {
                 auditLogService.record(
@@ -105,8 +106,15 @@ public class OperationalVerificationService {
         String publicKeyBase32;
         try {
             Map<String, Object> docJson = jwtService.readJsonMap(new String(docBox.get(), StandardCharsets.UTF_8));
-            publicKeyBase32 = (String) docJson.get("publicKey");
-            if (publicKeyBase32 == null || publicKeyBase32.isBlank()) {
+            // Bug 9 fix : utilisation de String.valueOf() au lieu du cast direct pour éviter
+            // un ClassCastException silencieux si Jackson désérialise la valeur autrement
+            // qu'en String (ex: null, nombre). On vérifie ensuite le contenu.
+            Object rawPubKey = docJson.get("publicKey");
+            if (rawPubKey == null) {
+                return rejected(request.getDid(), "Clé publique absente du DID Document on-chain");
+            }
+            publicKeyBase32 = String.valueOf(rawPubKey);
+            if (publicKeyBase32.isBlank() || "null".equals(publicKeyBase32)) {
                 return rejected(request.getDid(), "Clé publique absente du DID Document on-chain");
             }
         } catch (Exception e) {
@@ -151,6 +159,9 @@ public class OperationalVerificationService {
             anomalyService.recordPermissionViolation(request.getDid());
             return rejected(request.getDid(), "Permission non accordée : " + request.getRequestedPermission());
         }
+
+        device.setLastSeenAt(LocalDateTime.now());
+        deviceRepository.save(device);
 
         saveDeviceCacheForGateway(request.getDid(), publicKeyBase32, status, permissions);
 
@@ -246,6 +257,13 @@ public class OperationalVerificationService {
         // Déclencheur 3 étendu au cache HIT : une violation de permission
         // détectée localement par la Gateway déclenche aussi la suspension
         // automatique, exactement comme en cache MISS.
+        if (request.isAuthorized()) {
+            deviceRepository.findByDid(request.getDid()).ifPresent(device -> {
+                device.setLastSeenAt(LocalDateTime.now());
+                deviceRepository.save(device);
+            });
+        }
+
         if ("PERMISSION_VIOLATION".equals(request.getViolationType())) {
             anomalyService.recordPermissionViolation(request.getDid());
         }

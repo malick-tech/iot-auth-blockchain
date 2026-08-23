@@ -69,10 +69,12 @@ public class AnomalyDetectionService {
             RevocationRequest request = new RevocationRequest();
             request.setReason("Suspension automatique - anomalie '" + reason + "' (" + count + " occurrence(s))");
             revocationService.suspendDevice(did, request);
+            // Réinitialise les compteurs uniquement si la suspension a réussi.
+            // Si le dispositif est déjà suspendu/révoqué, on ne remet pas à zéro
+            // afin de conserver la traçabilité des tentatives suspectes.
+            redisService.resetFailures(did, reason);
         } catch (Exception e) {
             log.warn("Suspension automatique impossible pour did={} (reason={}) : {}", did, reason, e.getMessage());
-        } finally {
-            redisService.resetFailures(did, reason);
         }
     }
 }

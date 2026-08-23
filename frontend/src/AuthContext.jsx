@@ -16,7 +16,15 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    // Bug 15 fix : invalider le token côté serveur avant de nettoyer la session locale.
+    // L'appel est best-effort : si le réseau est down ou le token déjà expiré,
+    // on nettoie quand même la session locale.
+    try {
+      await api.logout();
+    } catch {
+      // ignoré intentionnellement
+    }
     setAuthToken(null);
     setUsername(null);
     localStorage.removeItem(SESSION_KEY);

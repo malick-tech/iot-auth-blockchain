@@ -68,8 +68,13 @@ public class VcService {
             }
             String proofValue = proof.get("proofValue").asText();
 
-            proof.put("proofValue", "");
-            String unsignedCredential = serialize(root);
+            // Bug 10 fix : travailler sur une copie profonde du nœud pour éviter
+            // toute mutation de l'arbre original, même si celui-ci venait à être
+            // réutilisé dans un contexte concurrent futur.
+            ObjectNode rootCopy = root.deepCopy();
+            ObjectNode proofCopy = (ObjectNode) rootCopy.get("proof");
+            proofCopy.put("proofValue", "");
+            String unsignedCredential = serialize(rootCopy);
 
             return com.iotauth.iot_auth.util.CryptoUtils.verifyEd25519(
                     adminKeyService.getPublicKeyBase32(),

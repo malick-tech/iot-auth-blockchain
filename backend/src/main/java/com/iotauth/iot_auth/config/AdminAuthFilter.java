@@ -21,6 +21,7 @@ import java.io.IOException;
 public class AdminAuthFilter extends OncePerRequestFilter {
 
     private static final String LOGIN_PATH = "/api/admin/auth/login";
+    private static final String LOGOUT_PATH = "/api/admin/auth/logout";
 
     private final AdminJwtService adminJwtService;
 
@@ -34,7 +35,7 @@ public class AdminAuthFilter extends OncePerRequestFilter {
         }
 
         String path = request.getRequestURI();
-        boolean isProtectedAdminPath = path.startsWith("/api/admin/") && !path.equals(LOGIN_PATH);
+        boolean isProtectedAdminPath = path.startsWith("/api/admin/") && !path.equals(LOGIN_PATH) && !path.equals(LOGOUT_PATH);
 
         if (isProtectedAdminPath) {
             String header = request.getHeader("Authorization");

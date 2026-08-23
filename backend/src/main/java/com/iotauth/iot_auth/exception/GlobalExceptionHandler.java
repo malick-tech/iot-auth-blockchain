@@ -1,4 +1,4 @@
-﻿package com.iotauth.iot_auth.exception;
+package com.iotauth.iot_auth.exception;
 
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;

@@ -1,5 +1,0 @@
-$kind: collection
-name: 'Enrollment'
-description: |-
-  Premier contact et challenge-response JWT PoP.
-order: 1000

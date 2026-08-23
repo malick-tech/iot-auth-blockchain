@@ -49,21 +49,27 @@ services:
     depends_on:
       - redis
 
-  nodered:
-    image: nodered/node-red:4.0
+  # Node-RED est géré par gateway/docker-compose.yml (groupe "gateway" dans Docker Desktop)
+  # Ne pas le déclarer ici pour éviter les conflits de port 1880 et de container name.
+
+  device-gateway:
+    image: python:3.12-slim
+    working_dir: /app
     environment:
-      - TZ=Africa/Dakar
       - BACKEND_BASE_URL=http://host.docker.internal:8083
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - GATEWAY_SHARED_SECRET=${IOT_AUTH_GATEWAY_SHARED_SECRET:-dev-gateway-secret}
-    ports:
-      - '1880:1880'
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
+    command: sh -c "pip install --no-cache-dir -r requirements.txt && python device_gateway_bridge.py"
     volumes:
-      - ../gateway/node-red-data:/data
-    depends_on:
-      - redis
+      - ../gateway:/app
+    networks:
+      - default
+      - gateway_default
 
 volumes:
   postgres-data:
   redis-data:
+
+networks:
+  gateway_default:
+    external: true

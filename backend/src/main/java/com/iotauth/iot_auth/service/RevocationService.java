@@ -1,4 +1,4 @@
-﻿package com.iotauth.iot_auth.service;
+package com.iotauth.iot_auth.service;
 
 import com.iotauth.iot_auth.domain.entity.Device;
 import com.iotauth.iot_auth.domain.entity.VerifiableCredential;

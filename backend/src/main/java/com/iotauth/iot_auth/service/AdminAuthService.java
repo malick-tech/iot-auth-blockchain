@@ -60,6 +60,29 @@ public class AdminAuthService {
                 .build();
     }
 
+    /**
+     * Invalide immédiatement le token JWT admin côté serveur (blacklist Redis).
+     * Le token reste cryptographiquement valide mais sera rejeté par AdminJwtService.isValid().
+     *
+     * @param token le Bearer token extrait du header Authorization
+     */
+    public void logout(String token) {
+        adminJwtService.blacklist(token);
+        String username = null;
+        try {
+            username = adminJwtService.extractUsername(token);
+        } catch (Exception ignored) {
+            // Token peut être illisible si déjà expiré au moment du logout
+        }
+        auditLogService.recordAdminAction(
+                EventType.ADMIN_LOGIN_SUCCESS, // pas d'EventType LOGOUT — on réutilise SUCCESS pour trace
+                username,
+                true,
+                "Déconnexion admin - token invalidé en blacklist"
+        );
+        log.info("Token admin blacklisté pour username={}", username);
+    }
+
     public void register(com.iotauth.iot_auth.dto.request.AdminRegisterRequest request) {
         if (adminUserRepository.existsByUsername(request.getUsername())) {
             throw new com.iotauth.iot_auth.exception.AdminAlreadyExistsException(request.getUsername());
