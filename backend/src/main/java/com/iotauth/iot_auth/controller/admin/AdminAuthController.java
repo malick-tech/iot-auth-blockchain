@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.web.bind.annotation.RequestHeader;
 
 @RestController
@@ -26,6 +27,7 @@ public class AdminAuthController {
     }
 
     @PostMapping(path = "/refresh")
+    @SecurityRequirement(name = "bearerAuth")
     public AdminLoginResponse refresh(@RequestHeader("Authorization") String authorization) {
         if (!authorization.startsWith("Bearer ")) {
             throw new com.iotauth.iot_auth.exception.InvalidAdminCredentialsException();
@@ -34,6 +36,7 @@ public class AdminAuthController {
     }
 
     @PostMapping(path = "/register")
+    @SecurityRequirement(name = "bearerAuth")
     public void register(@Valid @RequestBody com.iotauth.iot_auth.dto.request.AdminRegisterRequest request) {
         adminAuthService.register(request);
     }
@@ -44,6 +47,7 @@ public class AdminAuthController {
      * s'applique déjà, donc on est certain que le token est valide à l'entrée.
      */
     @PostMapping(path = "/logout")
+    @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<Void> logout(HttpServletRequest request) {
         String header = request.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {
