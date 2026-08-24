@@ -16,11 +16,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
 import java.util.List;
 
 @RestController
 @RequestMapping(path = "/api/admin/devices", produces = MediaType.APPLICATION_JSON_VALUE)
+@SecurityRequirement(name = "bearerAuth")
 @RequiredArgsConstructor
 public class DeviceAdminController {
 

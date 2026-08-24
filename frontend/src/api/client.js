@@ -39,7 +39,7 @@ async function request(path, options = {}) {
     onUnauthorized();
   }
 
-  if (!response.ok) {
+  if (!response.ok && !options.returnErrorData) {
     const message = data?.message || data?.error || `Erreur HTTP ${response.status}`;
     throw new Error(message);
   }
@@ -48,7 +48,7 @@ async function request(path, options = {}) {
 }
 
 export const api = {
-  health: () => request("/actuator/health"),
+  health: () => request("/actuator/health", { returnErrorData: true }),
 
   login: (username, password) =>
     request("/api/admin/auth/login", {
