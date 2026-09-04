@@ -27,10 +27,18 @@ public class SecurityConfig {
                 .cors(cors -> {})
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // Métriques applicatives
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        // Documentation OpenAPI / Swagger
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
-                        .requestMatchers("/api/enrollment/**", "/api/auth/**", "/api/operational/**").permitAll()
-                        .requestMatchers("/api/admin/**").permitAll()
+                        // Endpoints IoT publics (protégés par rate-limit + cryptographie)
+                        .requestMatchers("/api/v1/enrollment/**", "/api/v1/auth/**", "/api/v1/operational/**").permitAll()
+                        // Login et logout admin : publics (le token est absent ou non valide à ce stade)
+                        .requestMatchers("/api/v1/admin/auth/login", "/api/v1/admin/auth/logout").permitAll()
+                        // Toutes les autres routes admin exigent ROLE_ADMIN positionné par AdminAuthFilter.
+                        // Spring Security sert ici de garde-fou secondaire : même si AdminAuthFilter
+                        // n'écrivait pas le SecurityContext, la requête serait bloquée avec un 403.
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().denyAll()
                 )
                 .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)

@@ -21,7 +21,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import java.util.List;
 
 @RestController
-@RequestMapping(path = "/api/admin/devices", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(path = "/api/v1/admin/devices", produces = MediaType.APPLICATION_JSON_VALUE)
 @SecurityRequirement(name = "bearerAuth")
 @RequiredArgsConstructor
 public class DeviceAdminController {

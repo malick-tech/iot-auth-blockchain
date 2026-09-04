@@ -43,6 +43,9 @@ class EnrollmentServiceTest {
     @Mock
     private AnomalyDetectionService anomalyService;
 
+    @Mock
+    private EnrollmentMetadataBuilder metadataBuilder;
+
     private EnrollmentService service;
 
     @BeforeEach
@@ -54,7 +57,8 @@ class EnrollmentServiceTest {
                 jwtService,
                 vcService,
                 auditLogService,
-                anomalyService
+                anomalyService,
+                metadataBuilder
         );
     }
 

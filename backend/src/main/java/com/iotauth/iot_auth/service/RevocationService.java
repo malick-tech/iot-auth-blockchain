@@ -5,6 +5,7 @@ import com.iotauth.iot_auth.domain.entity.VerifiableCredential;
 import com.iotauth.iot_auth.domain.enums.ActorType;
 import com.iotauth.iot_auth.domain.enums.DeviceStatus;
 import com.iotauth.iot_auth.domain.enums.EventType;
+import com.iotauth.iot_auth.domain.enums.FailureCategory;
 import com.iotauth.iot_auth.dto.request.RevocationRequest;
 import com.iotauth.iot_auth.dto.response.DeviceStatusResponse;
 import com.iotauth.iot_auth.exception.DeviceNotFoundException;
@@ -23,7 +24,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class RevocationService {
+public class RevocationService implements DeviceSuspensionPort {
 
     private final DeviceRepository deviceRepository;
     private final RedisService redisService;
@@ -36,19 +37,29 @@ public class RevocationService {
     @Value("${iot.auth.redis-ttl-seconds:300}")
     private long redisTtl;
 
+    @Value("${iot.auth.jwt-ttl-seconds:3600}")
+    private long jwtTtlSeconds;
+
+    @Override
     @Transactional
-    public DeviceStatusResponse suspendDevice(String did, RevocationRequest request) {
+    public void suspendDevice(String did, RevocationRequest request) {
         Device device = findDeviceByDid(did);
-        return suspendDevice(device, request);
+        suspendDeviceInternal(device, request);
+    }
+
+    @Transactional
+    public DeviceStatusResponse suspendDeviceAndReturn(String did, RevocationRequest request) {
+        Device device = findDeviceByDid(did);
+        return suspendDeviceInternal(device, request);
     }
 
     @Transactional
     public DeviceStatusResponse suspendDeviceBySerialNumber(String serialNumber, RevocationRequest request) {
         Device device = findDeviceBySerialNumber(serialNumber);
-        return suspendDevice(device, request);
+        return suspendDeviceInternal(device, request);
     }
 
-    private DeviceStatusResponse suspendDevice(Device device, RevocationRequest request) {
+    private DeviceStatusResponse suspendDeviceInternal(Device device, RevocationRequest request) {
         validateStatusTransition(device, DeviceStatus.SUSPENDED);
         String did = device.getDid();
 
@@ -61,7 +72,11 @@ public class RevocationService {
         device.setSuspensionReason(request.getReason());
         Device savedDevice = deviceRepository.save(device);
 
+        // Invalider immédiatement le cache device ET le JWT PoP actif.
+        // Sans cette blacklist, la gateway pourrait continuer à autoriser
+        // le dispositif pendant toute la durée de vie résiduelle du JWT (jusqu'à 1h).
         redisService.deleteDeviceCache(did);
+        redisService.blacklistLastDeviceJwt(did, jwtTtlSeconds);
         auditLogService.record(
                 EventType.DEVICE_SUSPENDED,
                 did,
@@ -100,14 +115,16 @@ public class RevocationService {
         device.setLastSeenAt(now);
         Device savedDevice = deviceRepository.save(device);
 
+        redisService.clearDeviceAuthState(did);
+
         restoreActiveDeviceCache(savedDevice);
 
         // Remise Ã  zÃ©ro des compteurs d'anomalies : une rÃ©activation doit
         // repartir sur une fenÃªtre de dÃ©tection propre, sans hÃ©riter des
         // Ã©checs qui ont provoquÃ© la suspension automatique.
-        redisService.resetFailures(did, "challenge");
-        redisService.resetFailures(did, "vp");
-        redisService.resetFailures(did, "perm");
+        redisService.resetFailures(did, FailureCategory.CHALLENGE);
+        redisService.resetFailures(did, FailureCategory.VP);
+        redisService.resetFailures(did, FailureCategory.PERMISSION);
 
         auditLogService.record(
                 EventType.DEVICE_REACTIVATED,
@@ -148,7 +165,11 @@ public class RevocationService {
         device.setAlgorandTxId(txId);
         Device savedDevice = deviceRepository.save(device);
 
+        // Invalider immédiatement le cache device ET le JWT PoP actif.
+        // La révocation est irréversible — le token ne doit plus être accepté
+        // nulle part, même si la gateway l'a en cache local.
         redisService.deleteDeviceCache(did);
+        redisService.blacklistLastDeviceJwt(did, jwtTtlSeconds);
         auditLogService.record(
                 EventType.DEVICE_REVOKED,
                 did,

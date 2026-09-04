@@ -37,6 +37,7 @@ public class EnrollmentService {
     private final VcService vcService;
     private final AuditLogService auditLogService;
     private final AnomalyDetectionService anomalyService;
+    private final EnrollmentMetadataBuilder metadataBuilder;
     @Autowired(required = false)
     private AdminKeyService adminKeyService;
 
@@ -189,7 +190,7 @@ public class EnrollmentService {
         String txId = algorandService.publishDidDocument(
                 device.getDid(),
                 device.getPublicKey(),
-                buildMetadata(device)
+                metadataBuilder.build(device)
         );
         auditLogService.record(
                 EventType.ALGORAND_PUBLICATION_CONFIRMED,
@@ -233,41 +234,6 @@ public class EnrollmentService {
 
         log.info("Device active - did={}, txId={}", device.getDid(), txId);
         return jwt;
-    }
-
-    private String buildMetadata(Device device) {
-        return String.format(
-                "{\"@context\":[\"https://www.w3.org/ns/did/v1\"],"
-                        + "\"id\":\"%s\","
-                        + "\"publicKey\":\"%s\","
-                        + "\"verificationMethod\":[{\"id\":\"%s#key-1\",\"type\":\"Ed25519VerificationKey2020\","
-                        + "\"controller\":\"%s\",\"publicKeyBase32\":\"%s\"}],"
-                        + "\"authentication\":[\"%s#key-1\"],"
-                        + "\"assertionMethod\":[\"%s#key-1\"],"
-                        + "\"service\":[{\"id\":\"%s#metadata\",\"type\":\"IoTDeviceMetadata\","
-                        + "\"serviceEndpoint\":\"urn:iot-auth:device:%s\","
-                        + "\"metadata\":{\"type\":\"%s\",\"location\":\"%s\",\"group\":\"%s\",\"serial\":\"%s\"}}]}",
-                safeMetadataValue(device.getDid()),
-                safeMetadataValue(device.getPublicKey()),
-                safeMetadataValue(device.getDid()),
-                safeMetadataValue(device.getDid()),
-                safeMetadataValue(device.getPublicKey()),
-                safeMetadataValue(device.getDid()),
-                safeMetadataValue(device.getDid()),
-                safeMetadataValue(device.getDid()),
-                safeMetadataValue(device.getSerialNumber()),
-                safeMetadataValue(device.getDeviceType()),
-                safeMetadataValue(device.getLocation()),
-                safeMetadataValue(device.getLogicalGroup()),
-                safeMetadataValue(device.getSerialNumber())
-        );
-    }
-
-    private String safeMetadataValue(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private String issuerPublicKey() {

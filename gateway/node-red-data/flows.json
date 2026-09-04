@@ -4,7 +4,7 @@
         "type":  "tab",
         "label":  "IoT Auth Gateway",
         "disabled":  false,
-        "info":  "Flow opÃ©rationnel IoT Auth.\n\nChemin cache HIT  : mqtt in â†’ Parser â†’ Lire cache (Redis) â†’ Switch â†’ VÃ©rifier localement â†’ mqtt out\nChemin cache MISS : Switch â†’ PrÃ©parer requÃªte â†’ POST /api/operational/verify â†’ Formater rÃ©ponse â†’ mqtt out\nLog SOC           : VÃ©rifier localement (sortie 3) â†’ POST /api/operational/log-cache-hit",
+        "info":  "Flow opÃ©rationnel IoT Auth.\n\nChemin cache HIT  : mqtt in â†’ Parser â†’ Lire cache (Redis) â†’ Switch â†’ VÃ©rifier localement â†’ mqtt out\nChemin cache MISS : Switch â†’ PrÃ©parer requÃªte â†’ POST /api/v1/operational/verify â†’ Formater rÃ©ponse â†’ mqtt out\nLog SOC           : VÃ©rifier localement (sortie 3) â†’ POST /api/v1/operational/log-cache-hit",
         "env":  [
 
                 ]
@@ -200,11 +200,11 @@
         "id":  "2277606df5f72455",
         "type":  "http request",
         "z":  "d4fab3eceb603e63",
-        "name":  "POST /api/operational/verify",
+        "name":  "POST /api/v1/operational/verify",
         "method":  "POST",
         "ret":  "obj",
         "paytoqs":  "ignore",
-        "url":  "http://host.docker.internal:8083/api/operational/verify",
+        "url":  "http://host.docker.internal:8083/api/v1/operational/verify",
         "tls":  "",
         "persist":  false,
         "proxy":  "",
@@ -272,7 +272,7 @@
         "method":  "POST",
         "ret":  "txt",
         "paytoqs":  "ignore",
-        "url":  "http://host.docker.internal:8083/api/operational/log-cache-hit",
+        "url":  "http://host.docker.internal:8083/api/v1/operational/log-cache-hit",
         "tls":  "",
         "persist":  false,
         "proxy":  "",

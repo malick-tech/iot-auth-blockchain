@@ -30,6 +30,9 @@ public class DeviceInactivityMonitorService {
     @Value("${iot.auth.inactivity-monitor.timeout-seconds:90}")
     private long timeoutSeconds;
 
+    @Value("${iot.auth.jwt-ttl-seconds:3600}")
+    private long jwtTtlSeconds;
+
     @Scheduled(
             initialDelayString = "${iot.auth.inactivity-monitor.initial-delay-ms:30000}",
             fixedDelayString = "${iot.auth.inactivity-monitor.scan-interval-ms:30000}"
@@ -57,7 +60,10 @@ public class DeviceInactivityMonitorService {
         device.setSuspensionReason(reason);
         deviceRepository.save(device);
 
+        // Invalider immédiatement le cache device ET le JWT PoP actif pour que
+        // la gateway ne puisse plus autoriser ce dispositif inactif même en cache HIT.
         redisService.deleteDeviceCache(device.getDid());
+        redisService.blacklistLastDeviceJwt(device.getDid(), jwtTtlSeconds);
 
         auditLogService.record(
                 EventType.DEVICE_AUTO_SUSPENDED,

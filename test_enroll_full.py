@@ -18,7 +18,7 @@ print(f"DID:       {did}")
 print(f"PublicKey: {state['publicKeyBase32']}")
 
 # Step 1 : first-contact
-r1 = requests.post(f"{BASE}/api/enrollment/first-contact", json={
+r1 = requests.post(f"{BASE}/api/v1/enrollment/first-contact", json={
     "serialNumber": serial,
     "did": did,
     "publicKey": state["publicKeyBase32"],
@@ -33,7 +33,7 @@ nonce = r1.json()["nonce"]
 print(f"Nonce: {nonce}")
 
 # Step 2 : challenge-response  (déclenche la publication Algorand)
-r2 = requests.post(f"{BASE}/api/enrollment/challenge-response", json={
+r2 = requests.post(f"{BASE}/api/v1/enrollment/challenge-response", json={
     "did": did,
     "signedNonce": sign_b64url(sk, nonce),
 }, timeout=45)

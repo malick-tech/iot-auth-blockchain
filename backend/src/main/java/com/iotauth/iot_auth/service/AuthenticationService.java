@@ -3,6 +3,7 @@ package com.iotauth.iot_auth.service;
 import com.iotauth.iot_auth.domain.entity.Device;
 import com.iotauth.iot_auth.domain.entity.VerifiableCredential;
 import com.iotauth.iot_auth.domain.enums.ActorType;
+import com.iotauth.iot_auth.domain.enums.AlgorandBoxPrefix;
 import com.iotauth.iot_auth.domain.enums.DeviceStatus;
 import com.iotauth.iot_auth.domain.enums.EventType;
 import com.iotauth.iot_auth.dto.request.VPRequest;
@@ -44,49 +45,50 @@ public class AuthenticationService {
 
     @Value("${iot.auth.nonce-ttl-seconds:60}")
     private long nonceTtl;
+
     /**
-     * Authenticates a device by validating its Verifiable Presentation (VP).
+     * Authentifie un dispositif en validant sa Verifiable Presentation (VP).
      *
-     * Authentication flow:
-     * 1. Retrieve device by DID
-     * 2. Verify device status (not SUSPENDED, not REVOKED)
-     * 3. Verify VP signature and credential
-     * 4. Verify credential expiration
-     * 5. Check if VP is cached/already used (replay prevention)
-     * 6. Perform anomaly detection on authentication pattern
-     * 7. Update device lastSeenAt timestamp
-     * 8. Generate and return JWT PoP token
-     * 9. Log successful authentication
+     * Flux d'authentification :
+     * 1. Récupérer le dispositif par DID
+     * 2. Vérifier le statut du dispositif (pas SUSPENDED, pas REVOKED)
+     * 3. Vérifier la signature VP et le credential
+     * 4. Vérifier l'expiration du credential
+     * 5. Contrôler le replay (VP déjà utilisée)
+     * 6. Détection d'anomalies
+     * 7. Mettre à jour lastSeenAt
+     * 8. Générer et retourner le JWT PoP
+     * 9. Journaliser l'authentification réussie
      *
-     * @param request VPRequest containing device DID and signed presentation
-     * @return JwtPopResponse with JWT PoP token
-     * @throws DeviceNotFoundException if device DID not found
-     * @throws DeviceSuspendedException if device is suspended
-     * @throws DeviceRevokedException if device is revoked
-     * @throws InvalidSignatureException if VP signature is invalid
+     * @param request VPRequest contenant le DID du dispositif et la présentation signée
+     * @return JwtPopResponse avec le JWT PoP
+     * @throws DeviceNotFoundException   si le DID est inconnu
+     * @throws DeviceSuspendedException  si le dispositif est suspendu
+     * @throws DeviceRevokedException    si le dispositif est révoqué
+     * @throws InvalidSignatureException si la signature VP est invalide
      */
     @Transactional
     public JwtPopResponse authenticateDevice(VPRequest request) {
-        log.info("Starting authentication for DID: {}", request.getDid());
+        log.info("Démarrage de l'authentification pour DID: {}", request.getDid());
 
-        // 1. Retrieve device by DID
+        // 1. Récupérer le dispositif par DID
         Device device = deviceRepository.findByDid(request.getDid())
                 .orElseThrow(() -> {
-                    log.warn("Device not found for DID: {}", request.getDid());
+                    log.warn("Dispositif introuvable pour DID: {}", request.getDid());
                     auditAuthenticationRejected(request.getDid(), "Device not found");
                     return DeviceNotFoundException.byDid(request.getDid());
                 });
 
-        // 2. Verify device status - NOT SUSPENDED
+        // 2. Vérifier le statut - PAS SUSPENDU
         if (device.getStatus() == DeviceStatus.SUSPENDED) {
-            log.warn("Authentication attempt on suspended device: {}", device.getSerialNumber());
+            log.warn("Tentative d'authentification sur dispositif suspendu: {}", device.getSerialNumber());
             auditAuthenticationRejected(request.getDid(), "Device is suspended");
             throw new DeviceSuspendedException(
                     "Device is suspended. Reason: " + device.getSuspensionReason()
             );
         }
 
-       // 2. Verify device status - NOT REVOKED
+        // 2. Vérifier le statut - PAS RÉVOQUÉ
         if (device.getStatus() == DeviceStatus.REVOKED) {
             log.warn("Authentication attempt on revoked device: {}", device.getSerialNumber());
             // Événement distinct et prioritaire pour un SOC : une tentative sur un DID
@@ -100,7 +102,7 @@ public class AuthenticationService {
         // 2bis. Le renouvellement JWT n'est autorisé qu'aux dispositifs ACTIVE
         // (un dispositif PENDING ou PRE_REGISTERED n'a pas encore terminé l'enrôlement)
         if (device.getStatus() != DeviceStatus.ACTIVE) {
-            log.warn("Authentication attempt on non-active device: {} - status={}",
+            log.warn("Tentative d'authentification sur dispositif non-actif: {} - statut={}",
                     device.getSerialNumber(), device.getStatus());
             auditAuthenticationRejected(request.getDid(), "Device is not ACTIVE (status=" + device.getStatus() + ")");
             throw InvalidDeviceStatusException.expected(DeviceStatus.ACTIVE, device.getStatus());
@@ -124,7 +126,7 @@ public class AuthenticationService {
             throw new InvalidSignatureException("Challenge invalide ou expiré");
         }
 
-        // 3. Verify VP signature using device's public key (signature over challenge + VP)
+        // 3. Vérifier la signature VP avec la clé publique du dispositif (signature sur challenge + VP)
         boolean vpValid = vpVerificationService.verifyPresentation(
                 request.getVerifiablePresentation(),
                 request.getChallenge(),
@@ -133,7 +135,7 @@ public class AuthenticationService {
         );
 
         if (!vpValid) {
-            log.warn("Invalid VP signature for DID: {}", request.getDid());
+            log.warn("Signature VP invalide pour DID: {}", request.getDid());
             // Déclencheur 2 (spécifique) : signature de VP invalide, distinct
             // du déclencheur 1 qui couvre les échecs du protocole challenge-response.
             anomalyService.recordVpFailure(request.getDid());
@@ -141,36 +143,36 @@ public class AuthenticationService {
             throw new InvalidSignatureException("VP signature verification failed");
         }
 
-        // 4. Extract credential from VP and verify it
+        // 4. Extraire le credential de la VP et le vérifier
         String vcId = vpVerificationService.extractVcIdFromPresentation(
                 request.getVerifiablePresentation()
         );
 
         VerifiableCredential vc = vcRepository.findByVcId(vcId)
                 .orElseThrow(() -> {
-                    log.warn("Credential not found: {}", vcId);
+                    log.warn("Credential introuvable: {}", vcId);
                     auditAuthenticationRejected(request.getDid(), "Credential not found: " + vcId);
                     return new InvalidSignatureException("Credential not found in presentation");
                 });
 
         // 4bis. Verify(Kpub_admin, VC) - signature de l'Issuer sur le VC
         if (!vcService.verifyIssuerSignature(vc.getRawCredential())) {
-            log.warn("Invalid issuer signature on VC: {} for DID: {}", vcId, request.getDid());
+            log.warn("Signature issuer invalide sur VC: {} pour DID: {}", vcId, request.getDid());
             auditAuthenticationRejected(request.getDid(), "Invalid issuer signature on VC");
             throw new InvalidSignatureException("VC issuer signature verification failed");
         }
 
-        // 5. Verify credential expiration
+        // 5. Vérifier l'expiration du credential
         LocalDateTime now = LocalDateTime.now();
         if (vc.getExpirationDate().isBefore(now)) {
-            log.warn("Credential expired for DID: {} - Expiration: {}", request.getDid(), vc.getExpirationDate());
+            log.warn("Credential expiré pour DID: {} - Expiration: {}", request.getDid(), vc.getExpirationDate());
             auditAuthenticationRejected(request.getDid(), "Credential expired");
             throw new InvalidSignatureException("Credential has expired");
         }
 
         // 5bis. Résolution on-chain du statut - confirme ACTIVE sur Algorand,
         // en complément (pas en remplacement) du statut PostgreSQL déjà vérifié.
-        Optional<byte[]> onChainStatusBox = algorandService.readBox("st:", request.getDid());
+        Optional<byte[]> onChainStatusBox = algorandService.readBox(AlgorandBoxPrefix.STATUS, request.getDid());
         if (onChainStatusBox.isEmpty()) {
             log.warn("DID introuvable on-chain: {}", request.getDid());
             auditAuthenticationRejected(request.getDid(), "DID not found on-chain");
@@ -183,34 +185,34 @@ public class AuthenticationService {
             throw new InvalidSignatureException("DID not ACTIVE on-chain");
         }
 
-        // 6. Check replay: verify VP not already cached
+        // 6. Contrôler le replay : vérifier que la VP n'a pas déjà été utilisée
         String vpHash = CryptoUtils.hashVp(request.getVerifiablePresentation());
         if (redisService.isVpUsed(vpHash)) {
-            log.warn("Replay attack detected - VP already used: {} for DID: {}", vpHash, request.getDid());
+            log.warn("Attaque par rejeu détectée - VP déjà utilisée: {} pour DID: {}", vpHash, request.getDid());
             anomalyService.recordChallengeFailure(request.getDid());
             auditAuthenticationRejected(request.getDid(), "Replay attack - VP already used");
             throw new InvalidSignatureException("VP has already been used (replay prevention)");
         }
 
-        // 7. Mark VP as used in Redis
+        // 7. Marquer la VP comme utilisée dans Redis
         redisService.markVpUsed(vpHash);
 
-        // 8. Perform anomaly detection
+        // 8. Détection d'anomalies
         long failureCount = anomalyService.getChallengeFailures(request.getDid());
         if (failureCount > 5) {
-            log.warn("High anomaly score for DID: {} - Failure count: {}", request.getDid(), failureCount);
+            log.warn("Score d'anomalie élevé pour DID: {} - Compteur d'échecs: {}", request.getDid(), failureCount);
             auditAnomalyDetected(request.getDid(), "High failure rate: " + failureCount);
-            // Note: In production, could auto-suspend device if score too high
+            // En production, possibilité de suspendre automatiquement si le score dépasse le seuil
         }
 
-        // Reset failure count on successful auth
+        // Réinitialiser le compteur d'échecs après authentification réussie
         anomalyService.resetChallengeFailures(request.getDid());
 
-        // 9. Update device lastSeenAt
+        // 9. Mettre à jour lastSeenAt
         device.setLastSeenAt(now);
         deviceRepository.save(device);
 
-        // 10. Generate JWT PoP token with device public key
+        // 10. Générer le JWT PoP avec la clé publique du dispositif
         JwtPopResponse jwtPopResponse = jwtService.generateJwtPop(device.getDid(), device.getPublicKey());
         jwtPopResponse.setTokenType("Bearer");
         jwtPopResponse.setPermissions(vc.getPermissions());
@@ -218,7 +220,7 @@ public class AuthenticationService {
         jwtPopResponse.setVerifiableCredential(vc.getRawCredential());
         jwtPopResponse.setDeviceSerialNumber(device.getSerialNumber());
 
-        // 11. Log successful authentication
+        // 11. Journaliser l'authentification réussie
         auditAuthenticationSuccess(request.getDid());
         auditLogService.record(
                 EventType.JWT_RENEWED,
@@ -228,7 +230,7 @@ public class AuthenticationService {
                 "JWT PoP renouvelé, credentialId=" + vc.getVcId()
         );
 
-        log.info("Authentication successful for DID: {}", request.getDid());
+        log.info("Authentification réussie pour DID: {}", request.getDid());
 
         return jwtPopResponse;
     }
@@ -273,10 +275,10 @@ public class AuthenticationService {
     }
 
     /**
-     * Validates if a device is currently authorized (active + not suspended).
+     * Vérifie si un dispositif est actuellement autorisé (actif, non suspendu).
      *
-     * @param did Device DID
-     * @return true if device can authenticate
+     * @param did DID du dispositif
+     * @return true si le dispositif peut s'authentifier
      */
     public boolean isDeviceAuthorized(String did) {
         return deviceRepository.findByDid(did)
@@ -285,11 +287,11 @@ public class AuthenticationService {
     }
 
     /**
-     * Checks if device has specific permission.
+     * Vérifie si un dispositif possède une permission spécifique.
      *
-     * @param did Device DID
-     * @param permission Permission to check (e.g., "read", "write")
-     * @return true if device has permission
+     * @param did        DID du dispositif
+     * @param permission Permission à vérifier (ex: "device:read", "device:operate")
+     * @return true si le dispositif possède la permission
      */
     public boolean hasDevicePermission(String did, String permission) {
     return deviceRepository.findByDid(did)
@@ -307,7 +309,7 @@ public class AuthenticationService {
                 did,
                 ActorType.DEVICE,
                 true,
-                "Authentication successful"
+                "Authentification réussie"
         );
     }
 
@@ -317,7 +319,7 @@ public class AuthenticationService {
                 did,
                 ActorType.DEVICE,
                 false,
-                "Authentication rejected: " + reason
+                "Authentification refusée : " + reason
         );
     }
 
@@ -327,7 +329,7 @@ public class AuthenticationService {
                 did,
                 ActorType.DEVICE,
                 false,
-                "Anomaly detected: " + anomaly
+                "Anomalie détectée : " + anomaly
         );
     }
 

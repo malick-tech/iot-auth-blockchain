@@ -147,47 +147,70 @@ public class AlgorandService {
             List<AppBoxReference> boxes,
             String didForLogs
     ) {
-        try {
-            TransactionParametersResponse params = algodClient.TransactionParams().execute().body();
+        int maxAttempts = 3;
+        long delayMs = 1000;
 
-            Transaction txn = Transaction.ApplicationCallTransactionBuilder()
-                    .sender(algorandAdminAccount.getAddress())
-                    .suggestedParams(params)
-                    .applicationId(appId)
-                    .args(appArgs)
-                    .boxReferences(boxes)
-                    .build();
+        Exception lastException = null;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                TransactionParametersResponse params = algodClient.TransactionParams().execute().body();
 
-            SignedTransaction signedTxn = algorandAdminAccount.signTransaction(txn);
-            byte[] encodedTxBytes = Encoder.encodeToMsgPack(signedTxn);
+                Transaction txn = Transaction.ApplicationCallTransactionBuilder()
+                        .sender(algorandAdminAccount.getAddress())
+                        .suggestedParams(params)
+                        .applicationId(appId)
+                        .args(appArgs)
+                        .boxReferences(boxes)
+                        .build();
 
-            Response<PostTransactionsResponse> submitResponse = algodClient.RawTransaction()
-                    .rawtxn(encodedTxBytes)
-                    .execute();
+                SignedTransaction signedTxn = algorandAdminAccount.signTransaction(txn);
+                byte[] encodedTxBytes = Encoder.encodeToMsgPack(signedTxn);
 
-            if (!submitResponse.isSuccessful()) {
-                throw new IllegalStateException("Echec de soumission de la transaction Algorand: " + submitResponse.message());
+                Response<PostTransactionsResponse> submitResponse = algodClient.RawTransaction()
+                        .rawtxn(encodedTxBytes)
+                        .execute();
+
+                if (!submitResponse.isSuccessful()) {
+                    throw new IllegalStateException("Echec de soumission de la transaction Algorand: " + submitResponse.message());
+                }
+
+                String txId = submitResponse.body().txId;
+                PendingTransactionResponse confirmed = waitForConfirmation(txId, 4);
+
+                log.info("Transaction Algorand {} confirmee pour DID={} - round={} - txId={} (tentative {}/{})",
+                        method, didForLogs, confirmed.confirmedRound, txId, attempt, maxAttempts);
+
+                return txId;
+
+            } catch (Exception e) {
+                lastException = e;
+                log.warn("Echec tentative {}/{} de l'appel Algorand (method={}, did={}): {}",
+                        attempt, maxAttempts, method, didForLogs, e.getMessage());
+
+                if (attempt < maxAttempts) {
+                    try {
+                        Thread.sleep(delayMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                    delayMs *= 2; // backoff exponentiel : 1s, 2s
+                }
             }
-
-            String txId = submitResponse.body().txId;
-            PendingTransactionResponse confirmed = waitForConfirmation(txId, 4);
-
-            log.info("Transaction Algorand {} confirmee pour DID={} - round={} - txId={}",
-                    method, didForLogs, confirmed.confirmedRound, txId);
-
-            return txId;
-        } catch (Exception e) {
-            log.error("Echec de l'appel au smart contract Algorand (method={}, did={}): {}",
-                    method, didForLogs, e.getMessage(), e);
-            auditLogService.record(
-                    EventType.ALGORAND_PUBLICATION_FAILED,
-                    didForLogs,
-                    ActorType.SYSTEM,
-                    false,
-                    "Echec publication on-chain (" + method + ") : " + e.getMessage()
-            );
-            throw new IllegalStateException("Echec de la publication on-chain: " + e.getMessage(), e);
         }
+
+        log.error("Echec definitif de l'appel au smart contract Algorand apres {} tentatives (method={}, did={}): {}",
+                maxAttempts, method, didForLogs, lastException != null ? lastException.getMessage() : "inconnu", lastException);
+        auditLogService.record(
+                EventType.ALGORAND_PUBLICATION_FAILED,
+                didForLogs,
+                ActorType.SYSTEM,
+                false,
+                "Echec publication on-chain apres " + maxAttempts + " tentatives (" + method + ") : "
+                        + (lastException != null ? lastException.getMessage() : "inconnu")
+        );
+        throw new IllegalStateException("Echec de la publication on-chain apres " + maxAttempts + " tentatives: "
+                + (lastException != null ? lastException.getMessage() : "inconnu"), lastException);
     }
 
     private Optional<byte[]> readRawBox(byte[] boxName) throws Exception {

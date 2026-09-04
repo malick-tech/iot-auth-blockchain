@@ -413,6 +413,9 @@ def run_device(args) -> None:
     master_key = load_or_create_master_key()
     state = load_or_create_identity(args.serial, args.app_id, master_key)
 
+    if state.get("verifiableCredential"):
+        state["jwt"] = None
+
     print("Device pret")
     print(f"  serial    : {state['serialNumber']}")
     print(f"  did       : {state['did']}")

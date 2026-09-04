@@ -57,14 +57,14 @@ def enroll_device():
     print("Serial :", serial_number)
     print("DID    :", did)
 
-    check(requests.post(f"{BASE_URL}/api/admin/devices", json={
+    check(requests.post(f"{BASE_URL}/api/v1/admin/devices", json={
         "serialNumber": serial_number,
         "deviceType": "capteur-temperature",
         "location": "Ziguinchor-Lab",
     }), "Pré-enregistrement")
 
     sigma0 = sign_b64url(signing_key, serial_number + did)
-    challenge = check(requests.post(f"{BASE_URL}/api/enrollment/first-contact", json={
+    challenge = check(requests.post(f"{BASE_URL}/api/v1/enrollment/first-contact", json={
         "serialNumber": serial_number,
         "did": did,
         "publicKey": public_key_b32,
@@ -72,7 +72,7 @@ def enroll_device():
     }), "First contact")
 
     sigma1 = sign_b64url(signing_key, challenge["nonce"])
-    check(requests.post(f"{BASE_URL}/api/enrollment/challenge-response", json={
+    check(requests.post(f"{BASE_URL}/api/v1/enrollment/challenge-response", json={
         "did": did,
         "signedNonce": sigma1,
     }), "Challenge response")
@@ -101,7 +101,7 @@ def test_renewal(signing_key, did):
     print("\nvcId récupéré :", vc_id)
 
     challenge = check(
-        requests.post(f"{BASE_URL}/api/auth/challenge/{did}"),
+        requests.post(f"{BASE_URL}/api/v1/auth/challenge/{did}"),
         "Demande de challenge de renouvellement"
     )
     nonce = challenge["nonce"]
@@ -114,7 +114,7 @@ def test_renewal(signing_key, did):
 
     signature = sign_b64url(signing_key, nonce + vp)
 
-    check(requests.post(f"{BASE_URL}/api/auth/authenticate", json={
+    check(requests.post(f"{BASE_URL}/api/v1/auth/authenticate", json={
         "did": did,
         "verifiablePresentation": vp,
         "challenge": nonce,

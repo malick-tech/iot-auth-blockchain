@@ -9,7 +9,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.util.Base64;
 
 @Slf4j
 @Service
@@ -19,24 +18,18 @@ public class VpVerificationService {
     private final ObjectMapper objectMapper;
 
     /**
-     * Verifies a Verifiable Presentation by validating its signature.
-     * In a real implementation, this would follow the W3C VP standard.
+     * Vérifie une Verifiable Presentation en validant sa signature Ed25519.
      *
-     * For this prototype, we assume:
-     * - VP contains a proof with signature
-     * - Signature is Ed25519, computed over (challenge || verifiablePresentation)
-     * - Public key is provided separately
+     * Le nonce (challenge) est concaténé au contenu de la VP avant vérification
+     * de signature : cela garantit la fraîcheur de la preuve de possession
+     * (le dispositif ne peut pas rejouer une VP+signature interceptées sans
+     * connaître le nonce courant émis par le serveur).
      *
-     * Le nonce (challenge) est concatÃ©nÃ© au contenu de la VP avant vÃ©rification
-     * de signature : cela garantit la fraÃ®cheur de la preuve de possession
-     * (le dispositif ne peut pas rejouer une VP+signature interceptÃ©es sans
-     * connaÃ®tre le nonce courant Ã©mis par le serveur).
-     *
-     * @param verifiablePresentation JSON string of VP
-     * @param challenge nonce Ã©mis par le serveur pour cette session de renouvellement
-     * @param signature Base64-encoded ED25519 signature over (challenge + verifiablePresentation)
-     * @param publicKeyBase32 Base32-encoded public key
-     * @return true if VP signature is valid
+     * @param verifiablePresentation JSON de la VP
+     * @param challenge              nonce émis par le serveur pour cette session de renouvellement
+     * @param signature              signature Ed25519 en Base64 sur (challenge + verifiablePresentation)
+     * @param publicKeyBase32        clé publique du dispositif en Base32
+     * @return true si la signature est valide
      */
     public boolean verifyPresentation(
             String verifiablePresentation,
@@ -45,18 +38,16 @@ public class VpVerificationService {
             String publicKeyBase32
     ) {
         if (verifiablePresentation == null || verifiablePresentation.isBlank()) {
-            log.warn("VP is null or blank");
+            log.warn("La VP est nulle ou vide");
             return false;
         }
         if (challenge == null || challenge.isBlank()) {
-            log.warn("Challenge (nonce) is null or blank");
+            log.warn("Le challenge (nonce) est nul ou vide");
             return false;
         }
 
         try {
-            // In a real implementation, would verify VP according to W3C spec
-            // For prototype: Ed25519 signature verification over challenge || VP
-
+            // Vérification de signature Ed25519 sur challenge || VP
             String signedMessage = challenge + verifiablePresentation;
             boolean isValid = CryptoUtils.verifyEd25519(
                     publicKeyBase32,
@@ -65,42 +56,41 @@ public class VpVerificationService {
             );
 
             if (!isValid) {
-                log.warn("VP signature verification failed");
+                log.warn("Echec de vérification de la signature VP");
             }
 
             return isValid;
         } catch (Exception e) {
-            log.error("Error verifying VP: {}", e.getMessage(), e);
+            log.error("Erreur lors de la vérification de la VP: {}", e.getMessage(), e);
             return false;
         }
     }
 
     /**
-     * Extracts the Verifiable Credential ID from a Verifiable Presentation.
+     * Extrait l'identifiant du Verifiable Credential depuis une Verifiable Presentation.
      *
-     * Assumes VP is a JSON object with structure:
+     * Structure attendue de la VP :
+     * <pre>
      * {
      *   "verifiableCredential": [
-     *     {
-     *       "id": "vc-id-here",
-     *       ...
-     *     }
+     *     { "id": "vc-id-here", ... }
      *   ]
      * }
+     * </pre>
      *
-     * @param verifiablePresentation JSON string of VP
-     * @return VC ID extracted from VP
-     * @throws InvalidSignatureException if VC ID cannot be extracted
+     * @param verifiablePresentation JSON de la VP
+     * @return identifiant du VC extrait
+     * @throws InvalidSignatureException si l'identifiant ne peut pas être extrait
      */
     public String extractVcIdFromPresentation(String verifiablePresentation) {
         if (verifiablePresentation == null || verifiablePresentation.isBlank()) {
-            throw new InvalidSignatureException("VP is null or blank");
+            throw new InvalidSignatureException("La VP est nulle ou vide");
         }
 
         try {
             JsonNode vpNode = objectMapper.readTree(verifiablePresentation);
 
-            // Try to find VC ID in various possible locations
+            // Recherche du VC ID dans les emplacements possibles
             if (vpNode.has("verifiableCredential")) {
                 JsonNode vcArray = vpNode.get("verifiableCredential");
                 if (vcArray.isArray() && vcArray.size() > 0) {
@@ -108,36 +98,36 @@ public class VpVerificationService {
                     if (vc.has("id")) {
                         return vc.get("id").asText();
                     }
-                    // Fallback: try to find vcId
+                    // Fallback : essayer vcId
                     if (vc.has("vcId")) {
                         return vc.get("vcId").asText();
                     }
                 }
             }
 
-            // Alternative: try direct vcId
+            // Fallback : vcId direct sur la VP
             if (vpNode.has("vcId")) {
                 return vpNode.get("vcId").asText();
             }
 
-            // Fallback: try credentialId
+            // Fallback : credentialId
             if (vpNode.has("credentialId")) {
                 return vpNode.get("credentialId").asText();
             }
 
-            throw new InvalidSignatureException("Could not extract VC ID from VP");
+            throw new InvalidSignatureException("Impossible d'extraire l'identifiant VC de la VP");
         } catch (IOException e) {
-            log.error("Error parsing VP JSON: {}", e.getMessage(), e);
-            throw new InvalidSignatureException("Invalid VP JSON format: " + e.getMessage());
+            log.error("Erreur lors du parsing JSON de la VP: {}", e.getMessage(), e);
+            throw new InvalidSignatureException("Format JSON de VP invalide: " + e.getMessage());
         }
     }
 
     /**
-     * Validates the structure of a Verifiable Presentation.
-     * Checks required fields according to W3C VC spec.
+     * Valide la structure d'une Verifiable Presentation.
+     * Vérifie les champs requis selon la spécification W3C VC.
      *
-     * @param verifiablePresentation JSON VP
-     * @return true if VP has valid structure
+     * @param verifiablePresentation JSON de la VP
+     * @return true si la structure est valide
      */
     public boolean isValidPresentationStructure(String verifiablePresentation) {
         if (verifiablePresentation == null || verifiablePresentation.isBlank()) {
@@ -147,7 +137,7 @@ public class VpVerificationService {
         try {
             JsonNode vpNode = objectMapper.readTree(verifiablePresentation);
 
-            // Required fields for W3C VP
+            // Champs requis selon la spécification W3C VP
             boolean hasContext = vpNode.has("@context");
             boolean hasType = vpNode.has("type");
             boolean hasProof = vpNode.has("proof");
@@ -155,21 +145,21 @@ public class VpVerificationService {
 
             return hasContext && hasType && hasProof && hasCredentials;
         } catch (IOException e) {
-            log.error("Error validating VP structure: {}", e.getMessage());
+            log.error("Erreur lors de la validation de la structure VP: {}", e.getMessage());
             return false;
         }
     }
 
     /**
-     * Extracts the issuer DID from a Verifiable Credential within a VP.
+     * Extrait le DID de l'émetteur (issuer) d'un VC contenu dans une VP.
      *
-     * @param verifiablePresentation JSON VP
-     * @return Issuer DID
-     * @throws InvalidSignatureException if issuer cannot be extracted
+     * @param verifiablePresentation JSON de la VP
+     * @return DID de l'émetteur
+     * @throws InvalidSignatureException si l'émetteur ne peut pas être extrait
      */
     public String extractIssuerFromPresentation(String verifiablePresentation) {
         if (verifiablePresentation == null || verifiablePresentation.isBlank()) {
-            throw new InvalidSignatureException("VP is null or blank");
+            throw new InvalidSignatureException("La VP est nulle ou vide");
         }
 
         try {
@@ -185,23 +175,23 @@ public class VpVerificationService {
                 }
             }
 
-            throw new InvalidSignatureException("Could not extract issuer from VP");
+            throw new InvalidSignatureException("Impossible d'extraire l'émetteur de la VP");
         } catch (IOException e) {
-            log.error("Error extracting issuer: {}", e.getMessage(), e);
-            throw new InvalidSignatureException("Invalid VP JSON: " + e.getMessage());
+            log.error("Erreur lors de l'extraction de l'émetteur: {}", e.getMessage(), e);
+            throw new InvalidSignatureException("JSON VP invalide: " + e.getMessage());
         }
     }
 
     /**
-     * Extracts the credential subject DID from a VC within a VP.
+     * Extrait le DID du sujet (credential subject) d'un VC contenu dans une VP.
      *
-     * @param verifiablePresentation JSON VP
-     * @return Subject DID
-     * @throws InvalidSignatureException if subject cannot be extracted
+     * @param verifiablePresentation JSON de la VP
+     * @return DID du sujet
+     * @throws InvalidSignatureException si le sujet ne peut pas être extrait
      */
     public String extractSubjectFromPresentation(String verifiablePresentation) {
         if (verifiablePresentation == null || verifiablePresentation.isBlank()) {
-            throw new InvalidSignatureException("VP is null or blank");
+            throw new InvalidSignatureException("La VP est nulle ou vide");
         }
 
         try {
@@ -220,10 +210,10 @@ public class VpVerificationService {
                 }
             }
 
-            throw new InvalidSignatureException("Could not extract subject from VP");
+            throw new InvalidSignatureException("Impossible d'extraire le sujet de la VP");
         } catch (IOException e) {
-            log.error("Error extracting subject: {}", e.getMessage(), e);
-            throw new InvalidSignatureException("Invalid VP JSON: " + e.getMessage());
+            log.error("Erreur lors de l'extraction du sujet: {}", e.getMessage(), e);
+            throw new InvalidSignatureException("JSON VP invalide: " + e.getMessage());
         }
     }
 }

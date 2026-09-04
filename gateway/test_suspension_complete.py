@@ -6,7 +6,7 @@ if __name__ == "__main__":
     print("\n✅ Dispositif enrôlé et ACTIF (on-chain + PostgreSQL).")
 
     resp = requests.patch(
-        f"{BASE_URL}/api/admin/devices/{did}/suspend",
+        f"{BASE_URL}/api/v1/admin/devices/{did}/suspend",
         json={"reason": "Test manuel - vérification anti cache-miss"},
     )
     print("\n--- Suspension ---")
@@ -14,7 +14,7 @@ if __name__ == "__main__":
     print(resp.text)
 
     # Vérification opérationnelle immédiate, avec le JWT frais de cet enrôlement
-    resp2 = requests.post(f"{BASE_URL}/api/operational/verify", json={
+    resp2 = requests.post(f"{BASE_URL}/api/v1/operational/verify", json={
         "did": did,
         "jwt": jwt,
         "timestamp": 123,

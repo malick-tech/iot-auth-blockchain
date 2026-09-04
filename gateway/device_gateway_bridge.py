@@ -84,19 +84,19 @@ def _process_message(client: mqtt.Client, msg: mqtt.MQTTMessage) -> None:
 
     try:
         if operation == "enrollment/first-contact":
-            status, body = post_backend("/api/enrollment/first-contact", payload)
+            status, body = post_backend("/api/v1/enrollment/first-contact", payload)
 
         elif operation == "enrollment/challenge-response":
-            status, body = post_backend("/api/enrollment/challenge-response", payload)
+            status, body = post_backend("/api/v1/enrollment/challenge-response", payload)
 
         elif operation == "auth/challenge":
             # Bug 1 fix : le DID est URL-encodé avant insertion dans le chemin HTTP
             # pour éviter toute traversée de chemin ou injection d'endpoint.
             did = payload.get("did") or parts[1]
-            status, body = post_backend(f"/api/auth/challenge/{quote(did, safe='')}", {})
+            status, body = post_backend(f"/api/v1/auth/challenge/{quote(did, safe='')}", {})
 
         elif operation == "auth/authenticate":
-            status, body = post_backend("/api/auth/authenticate", payload)
+            status, body = post_backend("/api/v1/auth/authenticate", payload)
 
         else:
             publish_error(client, reply_to, 404, f"Operation gateway inconnue: {operation}")

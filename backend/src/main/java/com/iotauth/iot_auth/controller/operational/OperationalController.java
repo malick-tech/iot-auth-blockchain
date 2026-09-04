@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping(path = "/api/operational", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(path = "/api/v1/operational", produces = MediaType.APPLICATION_JSON_VALUE)
 @RequiredArgsConstructor
 public class OperationalController {
 

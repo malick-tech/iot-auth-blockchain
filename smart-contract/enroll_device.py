@@ -48,14 +48,14 @@ def main():
     print("DID         :", did)
     print("Public key  :", public_key_b32)
 
-    check(requests.post(f"{BASE_URL}/api/admin/devices", json={
+    check(requests.post(f"{BASE_URL}/api/v1/admin/devices", json={
         "serialNumber": serial_number,
         "deviceType": "capteur-temperature",
         "location": "Ziguinchor-Lab",
     }), "Pre-enregistrement")
 
     sigma0 = sign_b64url(signing_key, serial_number + did)
-    challenge = check(requests.post(f"{BASE_URL}/api/enrollment/first-contact", json={
+    challenge = check(requests.post(f"{BASE_URL}/api/v1/enrollment/first-contact", json={
         "serialNumber": serial_number,
         "did": did,
         "publicKey": public_key_b32,
@@ -66,7 +66,7 @@ def main():
     print("Nonce recu  :", nonce)
 
     sigma1 = sign_b64url(signing_key, nonce)
-    check(requests.post(f"{BASE_URL}/api/enrollment/challenge-response", json={
+    check(requests.post(f"{BASE_URL}/api/v1/enrollment/challenge-response", json={
         "did": did,
         "signedNonce": sigma1,
     }), "Challenge response")

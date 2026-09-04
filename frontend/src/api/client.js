@@ -51,17 +51,17 @@ export const api = {
   health: () => request("/actuator/health", { returnErrorData: true }),
 
   login: (username, password) =>
-    request("/api/admin/auth/login", {
+    request("/api/v1/admin/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password }),
     }),
 
   refreshAdminToken: () =>
-    request("/api/admin/auth/refresh", { method: "POST" }),
+    request("/api/v1/admin/auth/refresh", { method: "POST" }),
 
-  listDevices: () => request("/api/admin/devices"),
+  listDevices: () => request("/api/v1/admin/devices"),
 
-  getDeviceByDid: (did) => request(`/api/admin/devices/did/${encodeURIComponent(did)}`),
+  getDeviceByDid: (did) => request(`/api/v1/admin/devices/did/${encodeURIComponent(did)}`),
 
   searchLogs: ({ eventType, eventTypes, did, adminUsername, success, page = 0, size = 20 } = {}) => {
     const params = new URLSearchParams();
@@ -72,33 +72,33 @@ export const api = {
     if (success !== undefined && success !== null && success !== "") params.set("success", success);
     params.set("page", page);
     params.set("size", size);
-    return request(`/api/admin/logs?${params.toString()}`);
+    return request(`/api/v1/admin/logs?${params.toString()}`);
   },
   registerDevice: (payload) =>
-    request("/api/admin/devices", {
+    request("/api/v1/admin/devices", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
 
   suspendDevice: (did, reason) =>
-    request(`/api/admin/devices/${encodeURIComponent(did)}/suspend`, {
+    request(`/api/v1/admin/devices/${encodeURIComponent(did)}/suspend`, {
       method: "PATCH",
       body: JSON.stringify({ reason }),
     }),
 
   reactivateDevice: (did) =>
-    request(`/api/admin/devices/${encodeURIComponent(did)}/reactivate`, {
+    request(`/api/v1/admin/devices/${encodeURIComponent(did)}/reactivate`, {
       method: "PATCH",
     }),
 
   revokeDevice: (did, reason) =>
-    request(`/api/admin/devices/${encodeURIComponent(did)}/revoke`, {
+    request(`/api/v1/admin/devices/${encodeURIComponent(did)}/revoke`, {
       method: "PATCH",
       body: JSON.stringify({ reason }),
     }),
 
   logout: () =>
-    request("/api/admin/auth/logout", { method: "POST" }).catch(() => {
+    request("/api/v1/admin/auth/logout", { method: "POST" }).catch(() => {
       // Logout côté serveur best-effort : même si l'appel échoue (réseau, token déjà expiré),
       // on nettoie la session locale dans tous les cas.
     }),
