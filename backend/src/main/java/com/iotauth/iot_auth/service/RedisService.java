@@ -1,5 +1,6 @@
 package com.iotauth.iot_auth.service;
 
+import com.iotauth.iot_auth.domain.enums.FailureCategory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -109,6 +110,20 @@ public class RedisService {
         redisTemplate.delete(deviceKey(did));
     }
 
+    public void clearDeviceAuthState(String did) {
+        deleteNonce(did);
+        deleteDeviceCache(did);
+        String jti = getLastDeviceJti(did);
+        if (jti != null && !jti.isBlank()) {
+            redisTemplate.delete(jwtBlacklist(jti));
+        }
+        redisTemplate.delete(lastJtiKey(did));
+        redisTemplate.delete(vpUsedKeyForDid(did));
+        resetFailures(did, FailureCategory.CHALLENGE);
+        resetFailures(did, FailureCategory.VP);
+        resetFailures(did, FailureCategory.PERMISSION);
+    }
+
     // ============= Failure Tracking (Anomaly Detection) =============
 
     public long incrementFailures(String did, String reason, long ttlSeconds) {
@@ -198,6 +213,52 @@ public class RedisService {
         return Boolean.TRUE.equals(exists);
     }
 
+    // ============= Device JWT PoP Revocation =============
+
+    /**
+     * Stocke le JTI du dernier JWT PoP émis pour un dispositif.
+     * Permet de le blacklister immédiatement en cas de suspension/révocation,
+     * sans attendre l'expiration naturelle du token (TTL 1h).
+     *
+     * @param did        DID du dispositif
+     * @param jti        identifiant unique du JWT PoP
+     * @param ttlSeconds durée de vie du JWT en secondes (même TTL que le token)
+     */
+    public void saveLastDeviceJti(String did, String jti, long ttlSeconds) {
+        valueOps.set(lastJtiKey(did), jti, Duration.ofSeconds(ttlSeconds));
+    }
+
+    /**
+     * Retourne le JTI du dernier JWT PoP actif pour un dispositif, ou null s'il
+     * est expiré ou absent.
+     */
+    public String getLastDeviceJti(String did) {
+        return valueOps.get(lastJtiKey(did));
+    }
+
+    /**
+     * Blackliste immédiatement le JWT PoP actif d'un dispositif.
+     * Appelé lors d'une suspension ou d'une révocation pour invalider le token
+     * sans attendre son expiration naturelle.
+     *
+     * @param did        DID du dispositif
+     * @param ttlSeconds durée de blacklist (doit couvrir le TTL résiduel du JWT)
+     */
+    public void blacklistLastDeviceJwt(String did, long ttlSeconds) {
+        String jti = getLastDeviceJti(did);
+        if (jti != null && !jti.isBlank()) {
+            blacklistJwtToken(jti, ttlSeconds);
+        }
+    }
+
+    /**
+     * Vérifie si le JTI d'un JWT PoP de dispositif est blacklisté.
+     * Utilisé par JwtService.verifyJwtPop pour rejeter les tokens révoqués.
+     */
+    public boolean isDeviceJtiBlacklisted(String jti) {
+        return isJwtBlacklisted(jti);
+    }
+
     // ============= Key Prefix Helpers =============
 
     private String nonceKey(String did) {
@@ -216,11 +277,19 @@ public class RedisService {
         return "vp_used:" + vpHash;
     }
 
+    private String vpUsedKeyForDid(String did) {
+        return "vp_used:did:" + did;
+    }
+
     private String jwtKey(String jti) {
         return "jwt:" + jti;
     }
 
     private String jwtBlacklist(String jti) {
         return "jwt_blacklist:" + jti;
+    }
+
+    private String lastJtiKey(String did) {
+        return "last_jti:" + did;
     }
 }

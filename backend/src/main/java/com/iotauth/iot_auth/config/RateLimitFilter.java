@@ -60,10 +60,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     private String categoryFor(String path) {
-        if (path.equals("/api/admin/auth/login")) return "admin-login";
-        if (path.startsWith("/api/enrollment/")) return "enrollment";
-        if (path.startsWith("/api/auth/")) return "auth";
-        if (path.startsWith("/api/operational/")) return "operational";
+        if (path.equals("/api/v1/admin/auth/login")) return "admin-login";
+        if (path.startsWith("/api/v1/enrollment/")) return "enrollment";
+        if (path.startsWith("/api/v1/auth/")) return "auth";
+        if (path.startsWith("/api/v1/operational/")) return "operational";
         return null;
     }
 

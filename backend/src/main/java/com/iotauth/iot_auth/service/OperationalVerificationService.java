@@ -3,6 +3,7 @@ package com.iotauth.iot_auth.service;
 import com.iotauth.iot_auth.domain.entity.Device;
 import com.iotauth.iot_auth.domain.entity.VerifiableCredential;
 import com.iotauth.iot_auth.domain.enums.ActorType;
+import com.iotauth.iot_auth.domain.enums.AlgorandBoxPrefix;
 import com.iotauth.iot_auth.domain.enums.DeviceStatus;
 import com.iotauth.iot_auth.domain.enums.EventType;
 import com.iotauth.iot_auth.repository.DeviceRepository;
@@ -36,6 +37,7 @@ public class OperationalVerificationService {
     private final DeviceRepository deviceRepository;
     private final AuditLogService auditLogService;
     private final AnomalyDetectionService anomalyService;
+    private final DeviceMetricService deviceMetricService;
     @Autowired(required = false)
     private AdminKeyService adminKeyService;
 
@@ -63,8 +65,8 @@ public class OperationalVerificationService {
         }
 
         // Résolution on-chain : source de vérité en cas de cache MISS
-        Optional<byte[]> docBox = algorandService.readBox("doc:", request.getDid());
-        Optional<byte[]> statusBox = algorandService.readBox("st:", request.getDid());
+        Optional<byte[]> docBox = algorandService.readBox(AlgorandBoxPrefix.DOCUMENT, request.getDid());
+        Optional<byte[]> statusBox = algorandService.readBox(AlgorandBoxPrefix.STATUS, request.getDid());
 
         if (docBox.isEmpty() || statusBox.isEmpty()) {
             return rejected(request.getDid(), "DID introuvable on-chain");
@@ -164,6 +166,10 @@ public class OperationalVerificationService {
         deviceRepository.save(device);
 
         saveDeviceCacheForGateway(request.getDid(), publicKeyBase32, status, permissions);
+
+        // Persister les métriques IoT reçues dans ce paquet opérationnel.
+        // L'appel est best-effort : une erreur de persistance ne bloque pas la réponse.
+        deviceMetricService.saveMetrics(request.getDid(), request.getMetrics());
 
         log.info("Vérification opérationnelle (cache MISS) réussie pour did={}", request.getDid());
 

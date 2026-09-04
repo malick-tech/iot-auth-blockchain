@@ -1,5 +1,6 @@
 package com.iotauth.iot_auth.service;
 
+import com.iotauth.iot_auth.domain.enums.FailureCategory;
 import com.iotauth.iot_auth.domain.entity.Device;
 import com.iotauth.iot_auth.domain.entity.VerifiableCredential;
 import com.iotauth.iot_auth.domain.enums.ActorType;
@@ -59,6 +60,33 @@ class RevocationServiceTest {
                 vcService
         );
         ReflectionTestUtils.setField(service, "redisTtl", 300L);
+        ReflectionTestUtils.setField(service, "jwtTtlSeconds", 3600L);
+    }
+
+    @Test
+    void suspendDevice_shouldBlacklistJwtImmediately() {
+        Device device = activeDevice();
+        RevocationRequest request = request("Anomalie");
+        when(deviceRepository.findByDid(device.getDid())).thenReturn(Optional.of(device));
+        when(deviceRepository.save(any(Device.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.suspendDevice(device.getDid(), request);
+
+        verify(redisService).blacklistLastDeviceJwt(device.getDid(), 3600L);
+    }
+
+    @Test
+    void revokeDevice_shouldBlacklistJwtImmediately() {
+        Device device = activeDevice();
+        RevocationRequest request = request("Cle compromise");
+        when(deviceRepository.findByDid(device.getDid())).thenReturn(Optional.of(device));
+        when(algorandService.publishDeviceLifecycleEvent(device.getDid(), "REVOKED", request.getReason()))
+                .thenReturn("tx-revoke");
+        when(deviceRepository.save(any(Device.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.revokeDevice(device.getDid(), request);
+
+        verify(redisService).blacklistLastDeviceJwt(device.getDid(), 3600L);
     }
 
     @Test
@@ -68,7 +96,7 @@ class RevocationServiceTest {
         when(deviceRepository.findByDid(device.getDid())).thenReturn(Optional.of(device));
         when(deviceRepository.save(any(Device.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        DeviceStatusResponse response = service.suspendDevice(device.getDid(), request);
+        DeviceStatusResponse response = service.suspendDeviceAndReturn(device.getDid(), request);
 
         assertThat(response.getStatus()).isEqualTo(DeviceStatus.SUSPENDED);
         assertThat(response.isSuspended()).isTrue();
@@ -105,9 +133,10 @@ class RevocationServiceTest {
         assertThat(response.isActive()).isTrue();
         assertThat(device.getSuspensionReason()).isNull();
         verify(redisService).saveDeviceCache(device.getDid(), device.getPublicKey(), "ACTIVE", List.of("device:read"), 300L);
-        verify(redisService).resetFailures(device.getDid(), "challenge");
-        verify(redisService).resetFailures(device.getDid(), "vp");
-        verify(redisService).resetFailures(device.getDid(), "perm");
+        verify(redisService).clearDeviceAuthState(device.getDid());
+        verify(redisService).resetFailures(device.getDid(), FailureCategory.CHALLENGE);
+        verify(redisService).resetFailures(device.getDid(), FailureCategory.VP);
+        verify(redisService).resetFailures(device.getDid(), FailureCategory.PERMISSION);
         verifyNoInteractions(algorandService);
         verify(auditLogService).record(
                 eq(EventType.DEVICE_REACTIVATED),
@@ -170,7 +199,7 @@ class RevocationServiceTest {
         device.setStatus(DeviceStatus.PENDING);
         when(deviceRepository.findByDid(device.getDid())).thenReturn(Optional.of(device));
 
-        assertThatThrownBy(() -> service.suspendDevice(device.getDid(), request("Non pret")))
+        assertThatThrownBy(() -> service.suspendDeviceAndReturn(device.getDid(), request("Non pret")))
                 .isInstanceOf(InvalidDeviceStatusException.class);
 
         verifyNoInteractions(redisService, algorandService);

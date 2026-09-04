@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Slf4j
 @RestController
-@RequestMapping(path = "/api/auth", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(path = "/api/v1/auth", produces = MediaType.APPLICATION_JSON_VALUE)
 @RequiredArgsConstructor
 public class AuthController {
 
@@ -85,10 +85,10 @@ public class AuthController {
      */
     @PostMapping(path = "/health")
     @ResponseStatus(HttpStatus.OK)
-    public ResponseEntity<ApiResponse> health() {
+    public ResponseEntity<ApiResponse<Void>> health() {
         log.debug("Health check endpoint called");
         return ResponseEntity.ok(
-                ApiResponse.builder()
+                ApiResponse.<Void>builder()
                         .success(true)
                         .message("Authentication service is healthy")
                         .build()

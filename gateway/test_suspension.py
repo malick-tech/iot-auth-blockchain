@@ -5,7 +5,7 @@ if __name__ == "__main__":
     signing_key, did, jwt = enroll_device()
     print("\n✅ Dispositif enrôlé et ACTIF (on-chain + PostgreSQL).")
 
-    resp = requests.patch(f"{BASE_URL}/api/admin/devices/{did}/suspend", json={
+    resp = requests.patch(f"{BASE_URL}/api/v1/admin/devices/{did}/suspend", json={
         "reason": "Test manuel - vérification anti cache-miss"
     })
     print("\n--- Suspension ---")

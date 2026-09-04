@@ -21,6 +21,7 @@ import java.util.UUID;
 public class JwtService {
 
     private final AdminKeyService adminKeyService;
+    private final RedisService redisService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Value("${iot.auth.jwt-ttl-seconds:3600}")
@@ -51,8 +52,14 @@ public class JwtService {
         String signingInput = header + "." + body;
         String signature = adminKeyService.sign(signingInput);
 
+        String jwtToken = signingInput + "." + signature;
+
+        // Stocker le JTI pour permettre une invalidation immédiate lors d'une
+        // suspension ou révocation, sans attendre l'expiration naturelle du token.
+        redisService.saveLastDeviceJti(did, (String) payload.get("jti"), jwtTtlSeconds);
+
         JwtPopResponse jwtPopResponse = new JwtPopResponse();
-        jwtPopResponse.setJwt(signingInput + "." + signature);
+        jwtPopResponse.setJwt(jwtToken);
         jwtPopResponse.setTokenType("Bearer");
         jwtPopResponse.setDid(did);
         jwtPopResponse.setExpiresIn(jwtTtlSeconds);
@@ -81,6 +88,7 @@ public class JwtService {
     /**
      * Décode et vérifie la signature d'un JWT PoP (signé par l'Admin/Spring Boot).
      * Ne vérifie PAS la preuve de possession du dispositif - juste l'authenticité du token.
+     * Rejette également les tokens dont le JTI a été blacklisté (révocation/suspension).
      */
     public JwtClaims verifyJwtPop(String jwt) {
         String[] parts = jwt.split("\\.");
@@ -105,7 +113,14 @@ public class JwtService {
 
         try {
             Map<String, Object> payload = readJsonMap(payloadJson);
-            return JwtClaims.from(payload);
+            JwtClaims claims = JwtClaims.from(payload);
+
+            // Vérifier que le JTI n'est pas blacklisté (suspension ou révocation immédiate)
+            if (claims.getJti() != null && redisService.isDeviceJtiBlacklisted(claims.getJti())) {
+                throw new InvalidSignatureException("JWT PoP révoqué (dispositif suspendu ou révoqué)");
+            }
+
+            return claims;
         } catch (JsonProcessingException e) {
             throw new InvalidSignatureException("Payload du JWT PoP illisible");
         }

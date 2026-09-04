@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping(path = "/api/enrollment", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(path = "/api/v1/enrollment", produces = MediaType.APPLICATION_JSON_VALUE)
 @RequiredArgsConstructor
 public class EnrollmentController {
 

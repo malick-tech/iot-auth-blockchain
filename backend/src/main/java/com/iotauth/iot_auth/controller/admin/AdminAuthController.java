@@ -15,7 +15,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.web.bind.annotation.RequestHeader;
 
 @RestController
-@RequestMapping(path = "/api/admin/auth")
+@RequestMapping(path = "/api/v1/admin/auth")
 @RequiredArgsConstructor
 public class AdminAuthController {
 

@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
-import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
@@ -39,14 +38,28 @@ public class AdminJwtService {
     @PostConstruct
     public void init() {
         if (configuredSecret == null || configuredSecret.isBlank()) {
-            byte[] random = new byte[64];
-            new SecureRandom().nextBytes(random);
-            this.signingKey = Keys.hmacShaKeyFor(random);
-            log.warn("Aucun secret JWT admin fourni (iot.auth.admin.jwt-secret) - clé éphémère générée. " +
-                    "Toutes les sessions admin seront invalidées au prochain redémarrage.");
-        } else {
-            this.signingKey = Keys.hmacShaKeyFor(Base64.getDecoder().decode(configuredSecret));
+            log.error("======================================================================");
+            log.error("ERREUR DE CONFIGURATION : iot.auth.admin.jwt-secret est absent.");
+            log.error("Toutes les sessions admin seraient invalidees au prochain redemarrage.");
+            log.error("Definir IOT_AUTH_ADMIN_JWT_SECRET en variable d'environnement.");
+            log.error("Pour generer une cle : openssl rand -base64 64");
+            log.error("======================================================================");
+            throw new IllegalStateException(
+                "Le secret JWT admin (IOT_AUTH_ADMIN_JWT_SECRET) est absent. " +
+                "Le serveur refuse de demarrer sans un secret persistant afin d'eviter " +
+                "l'invalidation de toutes les sessions admin existantes. " +
+                "Consultez les logs pour les instructions de generation."
+            );
         }
+        byte[] keyBytes = Base64.getDecoder().decode(configuredSecret);
+        if (keyBytes.length < 64) {
+            throw new IllegalStateException(
+                "Le secret JWT admin doit contenir au moins 64 octets une fois decode en Base64 " +
+                "(valeur actuelle : " + keyBytes.length + " octets). " +
+                "Verifiez la variable IOT_AUTH_ADMIN_JWT_SECRET."
+            );
+        }
+        this.signingKey = Keys.hmacShaKeyFor(keyBytes);
     }
 
     public String generateToken(String username) {

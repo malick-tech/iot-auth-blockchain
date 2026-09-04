@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
 @RestController
-@RequestMapping(path = "/api/admin/devices", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(path = "/api/v1/admin/devices", produces = MediaType.APPLICATION_JSON_VALUE)
 @SecurityRequirement(name = "bearerAuth")
 @RequiredArgsConstructor
 public class RevocationController {
@@ -27,7 +27,7 @@ public class RevocationController {
             @PathVariable String did,
             @Valid @RequestBody RevocationRequest request
     ) {
-        return revocationService.suspendDevice(did, request);
+        return revocationService.suspendDeviceAndReturn(did, request);
     }
 
     @PatchMapping(path = "/{did}/reactivate")

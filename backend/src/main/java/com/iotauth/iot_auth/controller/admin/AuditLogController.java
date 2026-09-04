@@ -13,7 +13,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import java.util.List;
 
 @RestController
-@RequestMapping(path = "/api/admin/logs")
+@RequestMapping(path = "/api/v1/admin/logs")
 @SecurityRequirement(name = "bearerAuth")
 @RequiredArgsConstructor
 public class AuditLogController {
