@@ -7,7 +7,7 @@ Projet de mémoire pour l'authentification sécurisée des dispositifs IoT avec 
 - `backend/` : API Spring Boot, logique d'enrôlement, authentification, VC/JWT, révocation, audit, intégration PostgreSQL/Redis/Algorand.
 - `frontend/` : console d'administration React/Vite pour piloter les dispositifs, consulter l'état système et lire les journaux d'audit.
 - `devices/` : simulateurs de dispositifs IoT persistants qui s'enrolent puis communiquent en continu.
-- `gateway/` : gateway Node-RED et scripts de test pour les flux opérationnels IoT.
+- `gateway/` : gateway Node-RED unique et scripts de test pour les flux d'identité et opérationnels IoT.
 - `smart-contract/` : contrat Algorand utilisé pour publier et résoudre les DID sur LocalNet.
 - `backend/compose.yaml` : PostgreSQL, Redis, pgAdmin, Redis Commander et Node-RED.
 
@@ -103,7 +103,7 @@ Le dispositif n'est pas cree directement par le script. Le flux respecte la sepa
 1. L'administrateur pre-enregistre le dispositif dans la console avec un numero de serie unique.
 2. Le simulateur est lance avec ce meme numero de serie, qui lui est propre.
 3. Le simulateur parle uniquement a la gateway via MQTT.
-4. La gateway relaie le first-contact, le challenge-response et le renouvellement JWT vers le backend.
+4. Node-RED relaie le first-contact, le challenge-response et le renouvellement JWT vers le backend.
 5. Le simulateur obtient son VC/JWT PoP, puis publie en continu vers la gateway.
 
 Installation des dependances Python :
