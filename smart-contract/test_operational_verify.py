@@ -6,7 +6,7 @@ import nacl.signing
 import requests
 
 BASE_URL = "http://localhost:8083"  # <-- adapte au port actuel
-APP_ID = 1010
+APP_ID = 1014
 
 
 def encode_base32(data: bytes) -> str:

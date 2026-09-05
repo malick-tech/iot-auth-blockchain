@@ -7,10 +7,10 @@ Le pre-enregistrement reste une action administrateur dans la plateforme :
 1. L'administrateur cree le dispositif dans la console avec un numero de serie unique.
 2. Le simulateur est lance avec ce meme numero de serie, qui devient son identite materielle fixe.
 3. Le simulateur genere ou recharge sa cle Ed25519 locale.
-4. Il realise le protocole d'enrolement via la gateway MQTT.
+4. Il realise le protocole d'enrolement directement via Node-RED sur MQTT.
 5. Il publie periodiquement des preuves operationnelles vers la gateway MQTT.
 
-Le simulateur ne communique jamais directement avec le backend. Tous les messages du dispositif passent par le broker MQTT et sont relayes par la gateway.
+Le simulateur ne communique jamais directement avec le backend. Node-RED est l'unique gateway : il recoit les messages MQTT du dispositif et appelle le backend HTTP pour l'enrolement, l'authentification et les operations.
 
 ## Installation
 

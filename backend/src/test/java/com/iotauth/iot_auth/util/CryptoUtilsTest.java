@@ -15,10 +15,10 @@ class CryptoUtilsTest {
         byte[] publicKeyBytes = new byte[32];
         new SecureRandom().nextBytes(publicKeyBytes);
         String publicKeyBase32 = CryptoUtils.encodeBase32(publicKeyBytes);
-        String did = CryptoUtils.buildDid(publicKeyBase32, 1010L, "localnet");
+        String did = CryptoUtils.buildDid(publicKeyBase32, 1014L, "localnet");
 
-        assertThat(did).startsWith("did:algo:custom:app:1010:");
-        assertThat(CryptoUtils.validateDidFormat(did, publicKeyBase32, 1010L, "localnet")).isTrue();
+        assertThat(did).startsWith("did:algo:custom:app:1014:");
+        assertThat(CryptoUtils.validateDidFormat(did, publicKeyBase32, 1014L, "localnet")).isTrue();
     }
 
     @Test

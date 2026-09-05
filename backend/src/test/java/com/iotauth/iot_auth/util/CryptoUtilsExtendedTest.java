@@ -105,7 +105,7 @@ class CryptoUtilsExtendedTest {
         byte[] publicKeyBytes = CryptoUtils.deriveEd25519PublicKeyBytes(privateKey);
         String publicKeyBase32 = CryptoUtils.encodeBase32(publicKeyBytes);
 
-        String did = CryptoUtils.buildDid(publicKeyBase32, 1010L, "localnet");
+        String did = CryptoUtils.buildDid(publicKeyBase32, 1014L, "localnet");
         byte[] extracted = CryptoUtils.extractDidSubjectPublicKey(did);
 
         assertThat(extracted).isEqualTo(publicKeyBytes);
@@ -137,18 +137,18 @@ class CryptoUtilsExtendedTest {
     void validateDidFormat_withTamperedPublicKey_shouldReturnFalse() {
         byte[] privateKey = CryptoUtils.generateEd25519PrivateKeyBytes();
         String publicKey = CryptoUtils.encodeBase32(CryptoUtils.deriveEd25519PublicKeyBytes(privateKey));
-        String did = CryptoUtils.buildDid(publicKey, 1010L, "localnet");
+        String did = CryptoUtils.buildDid(publicKey, 1014L, "localnet");
 
         byte[] otherKey = CryptoUtils.generateEd25519PrivateKeyBytes();
         String otherPublicKey = CryptoUtils.encodeBase32(CryptoUtils.deriveEd25519PublicKeyBytes(otherKey));
 
-        assertThat(CryptoUtils.validateDidFormat(did, otherPublicKey, 1010L, "localnet")).isFalse();
+        assertThat(CryptoUtils.validateDidFormat(did, otherPublicKey, 1014L, "localnet")).isFalse();
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"", "  "})
     void validateDidFormat_withBlankInputs_shouldReturnFalse(String blank) {
-        assertThat(CryptoUtils.validateDidFormat(blank, "SOMEKEY", 1010L, "localnet")).isFalse();
-        assertThat(CryptoUtils.validateDidFormat("did:algo:APP:1010:abc", blank, 1010L, "localnet")).isFalse();
+        assertThat(CryptoUtils.validateDidFormat(blank, "SOMEKEY", 1014L, "localnet")).isFalse();
+        assertThat(CryptoUtils.validateDidFormat("did:algo:APP:1014:abc", blank, 1014L, "localnet")).isFalse();
     }
 }

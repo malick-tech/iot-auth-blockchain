@@ -10,7 +10,7 @@ from algosdk.v2client import algod
 BASE_URL = "http://localhost:8083"
 ALGOD_ADDRESS = "http://localhost:4001"
 ALGOD_TOKEN = "a" * 64
-APP_ID = 1010
+APP_ID = 1014
 
 
 def encode_base32(data: bytes) -> str:

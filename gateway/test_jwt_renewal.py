@@ -19,7 +19,7 @@ import nacl.signing
 import requests
 
 BASE_URL = "http://localhost:8083"
-APP_ID = 1010
+APP_ID = 1014
 POSTGRES_CONTAINER = "iot-auth-postgres-1"
 POSTGRES_USER = "malick"
 POSTGRES_DB = "iot_auth_db"

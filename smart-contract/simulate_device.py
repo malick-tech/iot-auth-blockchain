@@ -2,7 +2,7 @@ import base64
 
 import nacl.signing
 
-APP_ID = 1010
+APP_ID = 1014
 
 
 def encode_base32(data: bytes) -> str:
