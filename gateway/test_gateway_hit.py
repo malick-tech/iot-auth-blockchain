@@ -9,7 +9,7 @@ import paho.mqtt.client as mqtt
 BASE_URL = "http://localhost:8083"       # <-- adapte au port actuel du backend
 MQTT_HOST = "localhost"
 MQTT_PORT = 1883
-APP_ID = 1010
+APP_ID = 1014
 
 
 def encode_base32(data: bytes) -> str:

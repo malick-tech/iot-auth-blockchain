@@ -3,7 +3,7 @@ import os
 
 import nacl.signing
 
-APP_ID = int(os.getenv("ALGORAND_APP_ID", "1010"))
+APP_ID = int(os.getenv("ALGORAND_APP_ID", "1014"))
 PRIVATE_KEY_B64 = os.getenv("DEVICE_PRIVATE_KEY_B64", "")
 SERIAL_NUMBER = os.getenv("DEVICE_SERIAL_NUMBER", "IOT-TEST-001")
 

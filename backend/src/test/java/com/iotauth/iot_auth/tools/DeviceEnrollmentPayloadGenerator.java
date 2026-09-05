@@ -11,13 +11,13 @@ import java.util.HexFormat;
  *   ./mvnw -DskipTests test-compile exec:java \
  *     -Dexec.classpathScope=test \
  *     -Dexec.mainClass=com.iotauth.iot_auth.tools.DeviceEnrollmentPayloadGenerator \
- *     -Dexec.args="IOT-DEVICE-001 1010"
+    *     -Dexec.args="IOT-DEVICE-001 1014"
  *
  * Ou avec une clé privée fixe en hexadécimal 32 octets :
  *   ./mvnw -DskipTests test-compile exec:java \
  *     -Dexec.classpathScope=test \
  *     -Dexec.mainClass=com.iotauth.iot_auth.tools.DeviceEnrollmentPayloadGenerator \
- *     -Dexec.args="IOT-DEVICE-001 1010 00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
+    *     -Dexec.args="IOT-DEVICE-001 1014 00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
  */
 public final class DeviceEnrollmentPayloadGenerator {
 
@@ -26,7 +26,7 @@ public final class DeviceEnrollmentPayloadGenerator {
 
     public static void main(String[] args) {
         String serialNumber = args.length >= 1 ? args[0] : "IOT-DEVICE-001";
-        long appId = args.length >= 2 ? Long.parseLong(args[1]) : 1010L;
+        long appId = args.length >= 2 ? Long.parseLong(args[1]) : 1014L;
         byte[] privateKey = args.length >= 3
                 ? HexFormat.of().parseHex(args[2])
                 : CryptoUtils.generateEd25519PrivateKeyBytes();
