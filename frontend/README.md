@@ -25,6 +25,10 @@ URL locale :
 http://localhost:5173
 ```
 
+Le backend doit être disponible sur `http://localhost:8083` avant d'utiliser la
+console. Le flux MQTT ne doit pas être lancé directement depuis le frontend :
+Node-RED reste la gateway unique entre les devices et l'API.
+
 ## Validation
 
 ```powershell
@@ -32,4 +36,4 @@ npm run lint
 npm run build
 ```
 
-Le frontend communique avec le backend Spring Boot sur `http://localhost:8083`.
+Le frontend communique avec le backend Spring Boot sur `http://localhost:8083`. L'App ID Algorand affichee dans les liens DID/Lora est `1014` par defaut et peut etre surchargee par `VITE_ALGORAND_APP_ID`.

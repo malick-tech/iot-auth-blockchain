@@ -28,6 +28,13 @@ Exemple apres pre-enregistrement admin du serial `IOT-TEMP-001` :
 python devices/device_simulator.py --serial IOT-TEMP-001 
 ```
 
+L'App ID LocalNet utilisé par défaut est `1014`. Il doit rester identique dans
+le backend, le simulateur et le contrat déployé :
+
+```powershell
+python devices/device_simulator.py --serial IOT-TEMP-001 --app-id 1014
+```
+
 ## Lancer un nouveau device avec un nouveau serial number
 
 Pour ajouter un nouveau dispositif, choisis un nouveau `serialNumber` qui n'existe pas encore dans la plateforme.
@@ -72,13 +79,15 @@ python devices/device_simulator.py --serial IOT-PRESS-003 --type capteur-pressio
 4. Arrete le simulateur avec `Ctrl+C`.
 5. Attends le delai configure par le backend.
 
-Par defaut, le backend suspend automatiquement un device `ACTIVE` apres 90 secondes sans communication operationnelle autorisee :
+Lorsque `iot.auth.inactivity-monitor.enabled=true`, le backend suspend automatiquement un device `ACTIVE` apres 90 secondes sans communication operationnelle autorisee :
 
 ```properties
 iot.auth.inactivity-monitor.timeout-seconds=90
 ```
 
 Le statut devient `SUSPENDED` et un log `DEVICE_AUTO_SUSPENDED` est cree avec l'acteur `SYSTEM`.
+
+En profil `dev`, la surveillance est desactivee par defaut. Pour tester ce comportement, active-la explicitement dans `application-dev.properties`.
 
 Le simulateur garde une identite distincte par numero de serie dans `devices/state/`.
 
@@ -100,3 +109,9 @@ python devices/device_simulator.py --serial IOT-TEMP-001 --interval 10 --permiss
 - `--interval` : delai entre deux messages operationnels.
 - `--permission` : permission demandee a la gateway.
 - `--mqtt-host` / `--mqtt-port` : broker MQTT, par defaut `localhost:1883`.
+- `--app-id` : namespace DID Algorand, `1014` par defaut.
+
+Après une réactivation depuis la console, le backend nettoie l'état d'authentification
+Redis et les compteurs d'échec avant le prochain challenge. Si un ancien JWT reste
+dans le fichier `devices/state/`, supprimer uniquement ce fichier local puis relancer
+le simulateur afin de refaire l'enrôlement.
