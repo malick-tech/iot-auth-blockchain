@@ -1,0 +1,14 @@
+{
+  "did": "",
+  "state_file": "devices/state/IOT-TEMP-001.json",
+  "mqtt_host": "localhost",
+  "mqtt_port": 1883,
+  "backend_url": "http://localhost:8083",
+  "redis_container": "iot-auth-redis-1",
+  "permission": "device:read",
+  "requests_per_scenario": 30,
+  "repetitions": 3,
+  "interval_seconds": 0.2,
+  "response_timeout_seconds": 10,
+  "scenarios": ["mqtt_hit", "mqtt_miss", "backend_direct"]
+}

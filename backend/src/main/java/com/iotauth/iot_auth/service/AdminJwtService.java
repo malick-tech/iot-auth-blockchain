@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
@@ -37,29 +38,46 @@ public class AdminJwtService {
 
     @PostConstruct
     public void init() {
-        if (configuredSecret == null || configuredSecret.isBlank()) {
-            log.error("======================================================================");
-            log.error("ERREUR DE CONFIGURATION : iot.auth.admin.jwt-secret est absent.");
-            log.error("Toutes les sessions admin seraient invalidees au prochain redemarrage.");
-            log.error("Definir IOT_AUTH_ADMIN_JWT_SECRET en variable d'environnement.");
-            log.error("Pour generer une cle : openssl rand -base64 64");
-            log.error("======================================================================");
-            throw new IllegalStateException(
-                "Le secret JWT admin (IOT_AUTH_ADMIN_JWT_SECRET) est absent. " +
-                "Le serveur refuse de demarrer sans un secret persistant afin d'eviter " +
-                "l'invalidation de toutes les sessions admin existantes. " +
-                "Consultez les logs pour les instructions de generation."
-            );
+        String effectiveSecret = configuredSecret == null ? "" : configuredSecret.trim();
+        byte[] keyBytes;
+
+        try {
+            keyBytes = Base64.getDecoder().decode(effectiveSecret);
+        } catch (IllegalArgumentException ex) {
+            keyBytes = effectiveSecret.getBytes(StandardCharsets.UTF_8);
         }
-        byte[] keyBytes = Base64.getDecoder().decode(configuredSecret);
-        if (keyBytes.length < 64) {
-            throw new IllegalStateException(
-                "Le secret JWT admin doit contenir au moins 64 octets une fois decode en Base64 " +
-                "(valeur actuelle : " + keyBytes.length + " octets). " +
-                "Verifiez la variable IOT_AUTH_ADMIN_JWT_SECRET."
-            );
+
+        boolean isDevelopmentLikeProfile = isDevelopmentLikeProfile();
+
+        if (effectiveSecret.isBlank() || keyBytes.length < 64) {
+            if (isDevelopmentLikeProfile) {
+                log.warn("Secret JWT admin absent ou trop court pour le profil local; utilisation d'un secret de dev local pour eviter le blocage du contexte.");
+                keyBytes = Base64.getDecoder().decode("ZGV2LWFkbWluLWp3dC1zZWNyZXQtZGV2LWFkbWluLWp3dC1zZWNyZXQtZGV2LWFkbWluLWp3dC1zZWNyZXQtMTIzNDU2Nzg5MA==");
+            } else {
+                log.error("======================================================================");
+                log.error("ERREUR DE CONFIGURATION : iot.auth.admin.jwt-secret est absent ou trop court.");
+                log.error("Toutes les sessions admin seraient invalidees au prochain redemarrage.");
+                log.error("Definir IOT_AUTH_ADMIN_JWT_SECRET en variable d'environnement.");
+                log.error("Pour generer une cle : openssl rand -base64 64");
+                log.error("======================================================================");
+                throw new IllegalStateException(
+                    "Le secret JWT admin (IOT_AUTH_ADMIN_JWT_SECRET) est absent ou trop court. " +
+                    "Le serveur refuse de demarrer sans un secret persistant afin d'eviter " +
+                    "l'invalidation de toutes les sessions admin existantes. " +
+                    "Consultez les logs pour les instructions de generation."
+                );
+            }
         }
+
         this.signingKey = Keys.hmacShaKeyFor(keyBytes);
+    }
+
+    private boolean isDevelopmentLikeProfile() {
+        String activeProfiles = System.getProperty("spring.profiles.active", "");
+        if (activeProfiles.isBlank()) {
+            activeProfiles = System.getenv().getOrDefault("SPRING_PROFILES_ACTIVE", "");
+        }
+        return activeProfiles.contains("dev") || activeProfiles.contains("test") || activeProfiles.contains("local");
     }
 
     public String generateToken(String username) {

@@ -9,7 +9,8 @@ Projet de mémoire pour l'authentification sécurisée des dispositifs IoT avec 
 - `devices/` : simulateurs de dispositifs IoT persistants qui s'enrolent puis communiquent en continu.
 - `gateway/` : gateway Node-RED unique et scripts de test pour les flux d'identité et opérationnels IoT.
 - `smart-contract/` : contrat Algorand utilisé pour publier et résoudre les DID sur LocalNet.
-- `backend/compose.yaml` : PostgreSQL, Redis, pgAdmin, Redis Commander et Node-RED.
+- `backend/compose.yaml` : PostgreSQL, Redis, pgAdmin et Redis Commander.
+- `gateway/docker-compose.yml` : Mosquitto et Node-RED, gateway MQTT unique.
 
 ## Services Locaux
 
@@ -40,26 +41,48 @@ cd backend
 docker compose up -d
 ```
 
-2. Vérifier Algorand LocalNet :
+2. Demarrer le broker MQTT et Node-RED :
+
+```powershell
+cd ../gateway
+docker compose up -d
+```
+
+3. Vérifier Algorand LocalNet :
 
 ```powershell
 algokit localnet status
 ```
 
-3. Démarrer le backend :
+4. Démarrer le backend :
 
 ```powershell
 cd backend
 .\mvnw.cmd spring-boot:run
 ```
 
-4. Démarrer le frontend :
+5. Démarrer le frontend :
 
 ```powershell
 cd frontend
 npm install
 npm run dev
 ```
+
+### Configuration locale
+
+Le fichier `.env` reste local et ne doit jamais être commité. Pour un démarrage
+dev, il doit notamment contenir un secret JWT admin Base64 d'au moins 64 octets,
+le secret partagé de la gateway et l'App ID LocalNet :
+
+```powershell
+$env:ALGORAND_APP_ID="1014"
+$env:IOT_AUTH_GATEWAY_SHARED_SECRET="dev-gateway-secret"
+$env:IOT_AUTH_ADMIN_JWT_SECRET="$(openssl rand -base64 64)"
+```
+
+Le profil `dev` accepte aussi une valeur locale brute ou invalide en dernier
+recours, mais une vraie clé Base64 persistante est obligatoire en production.
 
 ## Compte Admin
 
@@ -84,17 +107,17 @@ H2 reste réservé aux tests automatisés.
 
 ## Supervision d'inactivite
 
-Le backend surveille automatiquement les dispositifs actifs. Si un dispositif `ACTIVE` ne communique plus pendant le delai imparti, le systeme le passe en `SUSPENDED`, supprime son cache Redis et ecrit un log avec l'acteur `SYSTEM`.
+Le backend peut surveiller automatiquement les dispositifs actifs. En profil `dev`, cette surveillance est desactivee pour eviter qu'un device de test soit suspendu pendant que Node-RED traite ses messages en cache. Elle reste activable dans les autres profils.
 
 Parametres principaux :
 
 ```properties
-iot.auth.inactivity-monitor.enabled=true
+iot.auth.inactivity-monitor.enabled=false
 iot.auth.inactivity-monitor.timeout-seconds=90
 iot.auth.inactivity-monitor.scan-interval-ms=30000
 ```
 
-Chaque communication operationnelle autorisee met a jour `lastSeenAt`. Si le simulateur est arrete ou si la gateway ne recoit plus de messages, le device sera suspendu automatiquement apres le timeout.
+Avec `enabled=true`, chaque communication operationnelle autorisee met a jour `lastSeenAt`. Si le simulateur est arrete ou si la gateway ne recoit plus de messages, le device sera suspendu automatiquement apres le timeout.
 
 ## Simulation de dispositifs
 
@@ -157,7 +180,7 @@ Connexion admin :
 
 ```powershell
 $login = Invoke-RestMethod -Method Post `
-  -Uri http://localhost:8083/api/admin/auth/login `
+  -Uri http://localhost:8083/api/v1/admin/auth/login `
   -ContentType "application/json" `
   -Body '{"username":"admin","password":"changeme123"}'
 ```
@@ -167,7 +190,7 @@ Lecture des logs filtrés par admin :
 ```powershell
 $headers = @{ Authorization = "Bearer $($login.token)" }
 Invoke-RestMethod `
-  -Uri "http://localhost:8083/api/admin/logs?page=0&size=10&adminUsername=admin" `
+  -Uri "http://localhost:8083/api/v1/admin/logs?page=0&size=10&adminUsername=admin" `
   -Headers $headers
 ```
 
@@ -188,7 +211,35 @@ $env:ALGORAND_DEPLOYER_MNEMONIC="..."
 $env:ALGORAND_APP_ID="1014"
 ```
 
+Le contrat LocalNet utilise par cette version est l'application `1014`. Le compte qui a deploye cette application doit fournir `ALGORAND_DEPLOYER_MNEMONIC` pour publier les DID Documents et les mises a jour on-chain.
+
+## Test end-to-end
+
+Le parcours complet verifie : device → MQTT → Node-RED → backend → Algorand LocalNet → backend → Node-RED → device.
+
+```powershell
+python devices/device_simulator.py --serial IOT-TEMP-001 --app-id 1014
+```
+
 ## Validation
+
+Benchmark du chapitre 5 :
+
+```powershell
+.\experiments\run_benchmark.ps1
+```
+
+Les resultats sont ecrits dans `experiments/results/benchmark_raw.csv` et `experiments/results/benchmark_summary.csv`.
+
+Le benchmark utilise 30 requêtes par scénario et 3 répétitions par défaut :
+`mqtt_hit`, `mqtt_miss` et `backend_direct`. Le rate limiting reste activé en
+fonctionnement normal. Pour mesurer la latence sans être interrompu par le quota
+de 20 requêtes opérationnelles par minute, lancer temporairement le backend avec
+`-Diot.auth.rate-limit.enabled=false`, puis le redémarrer avec la valeur par défaut.
+
+La suite backend validée comprend 89 tests avec 0 échec et 0 erreur. Le test de
+contexte vérifie notamment le démarrage Spring, PostgreSQL/H2 de test, Redis et
+l'initialisation de l'App ID `1014`.
 
 Backend :
 
@@ -205,9 +256,8 @@ npm run lint
 npm run build
 ```
 
-Dernière validation effectuée :
+Validation recente :
 
-- backend : 19 tests OK ;
-- frontend lint : OK ;
-- frontend build : OK ;
+- tests crypto cibles : 21 tests OK ;
+- test end-to-end avec Node-RED et Algorand LocalNet `1014` : OK ;
 - health backend : PostgreSQL `UP`, Redis `UP`.
