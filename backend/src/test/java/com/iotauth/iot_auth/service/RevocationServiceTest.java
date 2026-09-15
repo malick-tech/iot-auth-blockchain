@@ -87,6 +87,7 @@ class RevocationServiceTest {
         service.revokeDevice(device.getDid(), request);
 
         verify(redisService).blacklistLastDeviceJwt(device.getDid(), 3600L);
+        verify(redisService).markDeviceRevoked(device.getDid(), 3600L);
     }
 
     @Test

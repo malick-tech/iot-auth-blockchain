@@ -1,5 +1,6 @@
 import argparse
 import base64
+import hashlib
 import json
 import os
 import random
@@ -353,24 +354,39 @@ def renew_jwt(state: dict, gateway: GatewayRpcClient, master_key: bytes) -> None
     save_state(state)
 
 
+def hash_metrics_json(metrics_json: str) -> str:
+    digest = hashlib.sha256(metrics_json.encode("utf-8")).digest()
+    return encode_b64url(digest)
+
+
 def publish_operational_request(client, state: dict, permission: str, master_key: bytes) -> None:
     signing_key = signing_key_from_state(state, master_key)
     claims = decode_jwt_payload(state["jwt"])
     timestamp = int(time.time())
-    proof_signature = sign_b64url(signing_key, f"{claims['jti']}:{timestamp}")
+
+    metrics = {
+        "temperatureC": round(22.0 + random.uniform(-2.5, 2.5), 2),
+        "humidityPercent": round(50.0 + random.uniform(-8.0, 8.0), 2),
+        "batteryPercent": 100,
+        "uptimeSeconds": int(time.time() - DEVICE_STARTED_AT),
+        "measuredAt": int(time.time()),
+    }
+    # Sérialise une seule fois, forme canonique compacte : c'est cette chaîne
+    # exacte qui est à la fois transmise et signée (cf. VP, même principe).
+    metrics_json = json.dumps(metrics, sort_keys=True, separators=(",", ":"))
+    metrics_hash = hash_metrics_json(metrics_json)
+
+    # m = did || jti || timestamp || requestedPermission || H(metricsJson)
+    message = f"{state['did']}:{claims['jti']}:{timestamp}:{permission or ''}:{metrics_hash}"
+    proof_signature = sign_b64url(signing_key, message)
+
     topic = f"iot/{state['did']}/operational/request"
     payload = {
         "jwt": state["jwt"],
         "timestamp": timestamp,
         "proofSignature": proof_signature,
         "requestedPermission": permission,
-        "metrics": {
-            "temperatureC": round(22.0 + random.uniform(-2.5, 2.5), 2),
-            "humidityPercent": round(50.0 + random.uniform(-8.0, 8.0), 2),
-            "batteryPercent": 100,
-            "uptimeSeconds": int(time.time() - DEVICE_STARTED_AT),
-            "measuredAt": int(time.time()),
-        },
+        "metricsJson": metrics_json,
     }
     client.publish(topic, json.dumps(payload), qos=1)
     print(f"[TX] {topic} permission={permission} ts={timestamp}")

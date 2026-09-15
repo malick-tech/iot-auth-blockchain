@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -70,7 +71,10 @@ public class EnrollmentService {
                     return DeviceNotFoundException.bySerial(request.getSerialNumber());
                 });
 
-        if (device.getStatus() != DeviceStatus.PENDING) {
+        boolean retryingPreRegistration = device.getStatus() == DeviceStatus.PRE_REGISTERED
+            && Objects.equals(device.getDid(), request.getDid())
+            && Objects.equals(device.getPublicKey(), request.getPublicKey());
+        if (device.getStatus() != DeviceStatus.PENDING && !retryingPreRegistration) {
             auditFirstContactRejected(request, "Statut invalide : " + device.getStatus());
             throw InvalidDeviceStatusException.expected(DeviceStatus.PENDING, device.getStatus());
         }
@@ -93,14 +97,16 @@ public class EnrollmentService {
             throw new InvalidSignatureException("Signature sigma0 invalide - verification Ed25519 echouee");
         }
 
-        if (deviceRepository.existsByDid(request.getDid())) {
+        if (!retryingPreRegistration && deviceRepository.existsByDid(request.getDid())) {
             auditFirstContactRejected(request, "DID deja utilise");
             throw DeviceAlreadyExistsException.byDid(request.getDid());
         }
 
-        device.setDid(request.getDid());
-        device.setPublicKey(request.getPublicKey());
-        device.setStatus(DeviceStatus.PRE_REGISTERED);
+        if (!retryingPreRegistration) {
+            device.setDid(request.getDid());
+            device.setPublicKey(request.getPublicKey());
+            device.setStatus(DeviceStatus.PRE_REGISTERED);
+        }
         device.setLastSeenAt(LocalDateTime.now());
         deviceRepository.save(device);
 

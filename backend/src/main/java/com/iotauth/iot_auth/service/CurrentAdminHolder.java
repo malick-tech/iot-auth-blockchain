@@ -8,6 +8,7 @@ package com.iotauth.iot_auth.service;
 public final class CurrentAdminHolder {
 
     private static final ThreadLocal<String> CURRENT = new ThreadLocal<>();
+    private static final ThreadLocal<String> CURRENT_FULL_NAME = new ThreadLocal<>();
 
     private CurrentAdminHolder() {}
 
@@ -19,7 +20,16 @@ public final class CurrentAdminHolder {
         return CURRENT.get();
     }
 
+    public static void setFullName(String fullName) {
+        CURRENT_FULL_NAME.set(fullName);
+    }
+
+    public static String getFullName() {
+        return CURRENT_FULL_NAME.get();
+    }
+
     public static void clear() {
         CURRENT.remove();
+        CURRENT_FULL_NAME.remove();
     }
 }

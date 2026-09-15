@@ -2,6 +2,7 @@ package com.iotauth.iot_auth.config;
 
 import com.iotauth.iot_auth.service.AdminJwtService;
 import com.iotauth.iot_auth.service.CurrentAdminHolder;
+import com.iotauth.iot_auth.repository.AdminUserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,6 +35,7 @@ public class AdminAuthFilter extends OncePerRequestFilter {
     private static final String LOGOUT_PATH = "/api/v1/admin/auth/logout";
 
     private final AdminJwtService adminJwtService;
+    private final AdminUserRepository adminUserRepository;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -65,6 +67,9 @@ public class AdminAuthFilter extends OncePerRequestFilter {
 
             String username = adminJwtService.extractUsername(token);
             CurrentAdminHolder.set(username);
+                CurrentAdminHolder.setFullName(adminUserRepository.findByUsernameAndActiveTrue(username)
+                    .map(admin -> admin.getFullName())
+                    .orElse(username));
 
             // Écrire l'authentification dans le SecurityContext pour que Spring Security
             // confirme le statut "authenticated" au niveau de .authorizeHttpRequests().

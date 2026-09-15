@@ -50,6 +50,9 @@ public class AuthLog {
      /** Nom de l'admin authentifié à l'origine de l'action, rempli automatiquement. */
     private String adminUsername;
 
+    /** Nom complet de l'admin authentifié à l'origine de l'action. */
+    private String adminFullName;
+
     @Column(columnDefinition = "TEXT")
     private String details;
 

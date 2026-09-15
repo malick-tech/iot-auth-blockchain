@@ -338,7 +338,7 @@ export default function App() {
           {/* Modales & overlays */}
           {showEnrollForm && (
             <EnrollDeviceForm
-              responsible={username}
+              responsible={fullName || username}
               onClose={() => setShowEnrollForm(false)}
               onEnrolled={() => {
                 setShowEnrollForm(false);
