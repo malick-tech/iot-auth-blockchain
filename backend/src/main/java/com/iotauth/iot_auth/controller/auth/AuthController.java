@@ -56,7 +56,7 @@ public class AuthController {
     @PostMapping(path = "/challenge/{did}")
     @ResponseStatus(HttpStatus.OK)
     public ResponseEntity<ChallengeResponse> requestChallenge(@PathVariable String did) {
-        log.info("Challenge de renouvellement demandÃ© pour DID: {}", did);
+        log.info("Challenge de renouvellement demandé pour DID: {}", did);
         ChallengeResponse response = authenticationService.issueRenewalChallenge(did);
         return ResponseEntity.ok(response);
     }

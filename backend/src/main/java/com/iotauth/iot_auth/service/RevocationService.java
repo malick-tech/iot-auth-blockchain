@@ -131,7 +131,7 @@ public class RevocationService implements DeviceSuspensionPort {
                 did,
                 ActorType.ADMIN,
                 true,
-                "RÃ©activation du dispositif",
+                "Réactivation du dispositif",
                 "{\"targetStatus\":\"ACTIVE\",\"redisAction\":\"RESTORE device\",\"resetFailureCounters\":true}",
                 null
         );
@@ -169,13 +169,14 @@ public class RevocationService implements DeviceSuspensionPort {
         // La révocation est irréversible — le token ne doit plus être accepté
         // nulle part, même si la gateway l'a en cache local.
         redisService.deleteDeviceCache(did);
+        redisService.markDeviceRevoked(did, jwtTtlSeconds);
         redisService.blacklistLastDeviceJwt(did, jwtTtlSeconds);
         auditLogService.record(
                 EventType.DEVICE_REVOKED,
                 did,
                 ActorType.ADMIN,
                 true,
-                "RÃ©vocation du dispositif : " + request.getReason(),
+                "Révocation du dispositif : " + request.getReason(),
                 "{\"reason\":\"" + jsonEscape(request.getReason()) + "\",\"targetStatus\":\"REVOKED\",\"algorandTxId\":\""
                         + jsonEscape(txId) + "\",\"redisAction\":\"DEL device\"}",
                 null

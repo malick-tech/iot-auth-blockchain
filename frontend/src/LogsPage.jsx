@@ -27,6 +27,7 @@ const CATEGORY_FILTERS = {
 };
 
 function humanActor(log) {
+  if (log.adminFullName)       return log.adminFullName;
   if (log.adminUsername)      return log.adminUsername;
   if (log.actor === "DEVICE") return "Dispositif";
   if (log.actor === "GATEWAY")return "Gateway";
@@ -280,7 +281,9 @@ export default function LogsPage({ refreshSignal }) {
                           {humanActor(l)}
                         </span>
                         {l.adminUsername && (
-                          <div className="mt-1 text-[11px] text-ink/35">Acteur: ADMIN</div>
+                          <div className="mt-1 text-[11px] text-ink/35">
+                            Compte: {l.adminUsername} · Acteur: ADMIN
+                          </div>
                         )}
                       </td>
                       <td className="px-4 py-3">

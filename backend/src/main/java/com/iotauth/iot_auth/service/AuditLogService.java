@@ -47,6 +47,7 @@ public class AuditLogService {
         log.setSourceIp(sourceIp);
         if (actor == ActorType.ADMIN) {
             log.setAdminUsername(CurrentAdminHolder.get());
+            log.setAdminFullName(CurrentAdminHolder.getFullName());
         }
         return authLogRepository.save(log);
     }
@@ -115,6 +116,7 @@ public class AuditLogService {
                         .eventType(log.getEventType().name())
                         .actor(log.getActor() != null ? log.getActor().name() : null)
                         .adminUsername(log.getAdminUsername())
+                        .adminFullName(log.getAdminFullName())
                         .success(log.getSuccess())
                         .sourceIp(log.getSourceIp())
                         .details(log.getDetails())

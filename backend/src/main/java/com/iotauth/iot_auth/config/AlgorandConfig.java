@@ -39,12 +39,18 @@ public class AlgorandConfig {
      */
     @Bean
     public Account algorandAdminAccount(
-            @Value("${iot.auth.algorand.deployer-mnemonic}") String mnemonic
+            @Value("${iot.auth.algorand.deployer-mnemonic}") String mnemonic,
+            @Value("${spring.datasource.url:}") String datasourceUrl
     ) throws GeneralSecurityException {
         if (mnemonic == null || mnemonic.isBlank()) {
-            log.warn("Aucun mnemonic Algorand fourni - compte Algorand ephemere genere pour le demarrage local. "
-                    + "Configure ALGORAND_DEPLOYER_MNEMONIC pour publier reellement sur Algorand.");
-            return new Account();
+            if (datasourceUrl.startsWith("jdbc:h2:")) {
+                return new Account();
+            }
+            throw new IllegalStateException(
+                "ALGORAND_DEPLOYER_MNEMONIC est obligatoire pour le profil local. "
+                    + "Il doit correspondre au compte admin du contrat Algorand (application 1014). "
+                    + "Definissez la variable dans le terminal avant de demarrer Spring Boot."
+            );
         }
         return new Account(mnemonic);
     }

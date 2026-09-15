@@ -115,6 +115,10 @@ public class JwtService {
             Map<String, Object> payload = readJsonMap(payloadJson);
             JwtClaims claims = JwtClaims.from(payload);
 
+            if (claims.getSub() != null && redisService.isDeviceRevoked(claims.getSub())) {
+                throw new InvalidSignatureException("JWT PoP révoqué (dispositif révoqué)");
+            }
+
             // Vérifier que le JTI n'est pas blacklisté (suspension ou révocation immédiate)
             if (claims.getJti() != null && redisService.isDeviceJtiBlacklisted(claims.getJti())) {
                 throw new InvalidSignatureException("JWT PoP révoqué (dispositif suspendu ou révoqué)");

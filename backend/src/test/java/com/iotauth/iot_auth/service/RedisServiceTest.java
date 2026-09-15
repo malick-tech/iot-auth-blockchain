@@ -197,4 +197,16 @@ class RedisServiceTest {
         when(redisTemplate.hasKey("jwt_blacklist:jti-789")).thenReturn(true);
         assertThat(service.isDeviceJtiBlacklisted("jti-789")).isTrue();
     }
+
+    @Test
+    void markDeviceRevoked_shouldSetDeviceRevocationKeyWithTtl() {
+        service.markDeviceRevoked("did:algo:ABC", 3600L);
+        verify(valueOps).set("device_revoked:did:algo:ABC", "revoked", Duration.ofSeconds(3600L));
+    }
+
+    @Test
+    void isDeviceRevoked_whenPresent_shouldReturnTrue() {
+        when(redisTemplate.hasKey("device_revoked:did:algo:ABC")).thenReturn(true);
+        assertThat(service.isDeviceRevoked("did:algo:ABC")).isTrue();
+    }
 }

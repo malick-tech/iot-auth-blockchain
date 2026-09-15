@@ -13,6 +13,7 @@ public class AuthLogResponse {
     private String eventType;
     private String actor;
     private String adminUsername;
+    private String adminFullName;
     private Boolean success;
     private String sourceIp;
     private String details;

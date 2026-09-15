@@ -3,8 +3,6 @@ package com.iotauth.iot_auth.dto.request;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
-import java.util.Map;
-
 @Data
 public class OperationalVerifyRequest {
 
@@ -21,5 +19,12 @@ public class OperationalVerifyRequest {
 
     private String requestedPermission;
 
-    private Map<String, Object> metrics;
+    /**
+     * Métriques du dispositif, transmises sous forme de chaîne JSON compacte
+     * littérale (et non déjà parsée en Map). La preuve de possession signe le
+     * condensat de cette chaîne exacte ; la parser côté serveur avant de la
+     * hasher réintroduirait le risque de canonicalisation JSON que l'on évite
+     * précisément pour la Verifiable Presentation (cf. chapitre 3).
+     */
+    private String metricsJson;
 }

@@ -259,6 +259,15 @@ public class RedisService {
         return isJwtBlacklisted(jti);
     }
 
+    /** Marque un dispositif comme révoqué jusqu'à l'expiration de ses JWT. */
+    public void markDeviceRevoked(String did, long ttlSeconds) {
+        valueOps.set(deviceRevokedKey(did), "revoked", Duration.ofSeconds(ttlSeconds));
+    }
+
+    public boolean isDeviceRevoked(String did) {
+        return Boolean.TRUE.equals(redisTemplate.hasKey(deviceRevokedKey(did)));
+    }
+
     // ============= Key Prefix Helpers =============
 
     private String nonceKey(String did) {
@@ -267,6 +276,10 @@ public class RedisService {
 
     private String deviceKey(String did) {
         return "device:" + did;
+    }
+
+    private String deviceRevokedKey(String did) {
+        return "device_revoked:" + did;
     }
 
     private String failureKey(String did, String reason) {

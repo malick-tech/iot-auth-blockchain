@@ -129,7 +129,14 @@ public class OperationalVerificationService {
             return rejected(request.getDid(), "Preuve de possession non fraîche");
         }
 
-        String proofMessage = claims.getJti() + ":" + request.getTimestamp();
+        // m = did || jti || timestamp || requestedPermission || H(metricsJson) — cf. chapitre 3.
+        // On hache la chaîne metricsJson exactement telle que reçue (aucune re-sérialisation)
+        // pour ne pas réintroduire de risque de canonicalisation JSON.
+        String metricsJson = request.getMetricsJson() == null ? "" : request.getMetricsJson();
+        String metricsHash = CryptoUtils.hashSha256(metricsJson.getBytes(StandardCharsets.UTF_8));
+        String requestedPermissionPart = request.getRequestedPermission() == null ? "" : request.getRequestedPermission();
+        String proofMessage = request.getDid() + ":" + claims.getJti() + ":" + request.getTimestamp()
+                + ":" + requestedPermissionPart + ":" + metricsHash;
         boolean proofValid = CryptoUtils.verifyEd25519(
                 publicKeyBase32,
                 proofMessage,
@@ -169,7 +176,7 @@ public class OperationalVerificationService {
 
         // Persister les métriques IoT reçues dans ce paquet opérationnel.
         // L'appel est best-effort : une erreur de persistance ne bloque pas la réponse.
-        deviceMetricService.saveMetrics(request.getDid(), request.getMetrics());
+        deviceMetricService.saveMetrics(request.getDid(), parseMetrics(request.getMetricsJson()));
 
         log.info("Vérification opérationnelle (cache MISS) réussie pour did={}", request.getDid());
 
@@ -186,8 +193,26 @@ public class OperationalVerificationService {
                 .did(request.getDid())
                 .status(status)
                 .permissions(permissions)
-            .metrics(request.getMetrics())
+                .metrics(parseMetrics(request.getMetricsJson()))
                 .build();
+    }
+
+    /**
+     * Parse metricsJson en Map uniquement pour la persistance en base et la réponse
+     * — appelé après vérification de la preuve de possession, jamais avant. Le hash
+     * utilisé pour la signature porte toujours sur la chaîne brute reçue,
+     * pas sur ce résultat de parsing.
+     */
+    private Map<String, Object> parseMetrics(String metricsJson) {
+        if (metricsJson == null || metricsJson.isBlank()) {
+            return null;
+        }
+        try {
+            return jwtService.readJsonMap(metricsJson);
+        } catch (Exception e) {
+            log.warn("metricsJson illisible, métriques non persistées : {}", e.getMessage());
+            return null;
+        }
     }
 
     private OperationalVerifyResponse rejected(String did, String reason) {
