@@ -56,6 +56,7 @@ public class AlgorandPublishingRecoveryService {
     public void recoverOnStartup() {
         log.info("Démarrage : scan des dispositifs PUBLISHING orphelins...");
         recoverPublishingOrphans();
+        recoverRevocationAnchors();
     }
 
     /**
@@ -66,6 +67,50 @@ public class AlgorandPublishingRecoveryService {
                initialDelayString = "${iot.auth.algorand.recovery.initial-delay-ms:60000}")
     public void recoverPeriodically() {
         recoverPublishingOrphans();
+        recoverRevocationAnchors();
+    }
+
+    /**
+     * Récupère les révocations dont l'ancrage on-chain a échoué au moment de
+     * la révocation (cf. RevocationService.revokeDevice, qui invalide Redis
+     * et persiste REVOKED avant de tenter la publication Algorand, pour ne
+     * pas faire dépendre le blocage opérationnel de la finalité blockchain).
+     *
+     * Contrairement à recoverPublishingOrphans, il n'y a pas de compteur
+     * d'échecs ni de retour en arrière possible : le dispositif reste REVOKED
+     * (et donc bloqué) indéfiniment tant que l'ancrage n'a pas réussi, ce qui
+     * est le comportement fail-closed attendu pour une révocation.
+     */
+    @Transactional
+    public void recoverRevocationAnchors() {
+        List<Device> orphans = deviceRepository.findByStatusAndAlgorandTxIdIsNull(DeviceStatus.REVOKED);
+        if (orphans.isEmpty()) {
+            return;
+        }
+
+        log.warn("Récupération Algorand : {} révocation(s) sans ancrage on-chain détectée(s)", orphans.size());
+
+        for (Device device : orphans) {
+            String did = device.getDid();
+            try {
+                String txId = algorandService.publishDeviceLifecycleEvent(
+                        did, DeviceStatus.REVOKED.name(), device.getRevocationReason());
+                device.setAlgorandTxId(txId);
+                deviceRepository.save(device);
+
+                auditLogService.record(
+                        EventType.ALGORAND_PUBLICATION_CONFIRMED,
+                        did,
+                        ActorType.SYSTEM,
+                        true,
+                        "Ancrage on-chain de la révocation récupéré après échec initial — txId=" + txId
+                );
+                log.info("Ancrage de révocation récupéré pour did={} txId={}", did, txId);
+            } catch (Exception e) {
+                log.error("Nouvel échec de l'ancrage de révocation pour did={} : {} — nouvelle tentative au prochain scan",
+                        did, e.getMessage());
+            }
+        }
     }
 
     @Transactional
