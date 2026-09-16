@@ -195,6 +195,37 @@ class RevocationServiceTest {
     }
 
     @Test
+    void revokeDevice_whenAlgorandFails_shouldStillBeRevokedInPostgresAndBlacklistJwt() {
+        Device device = activeDevice();
+        RevocationRequest request = request("Cle compromise");
+        when(deviceRepository.findByDid(device.getDid())).thenReturn(Optional.of(device));
+        when(algorandService.publishDeviceLifecycleEvent(device.getDid(), "REVOKED", request.getReason()))
+                .thenThrow(new RuntimeException("Algorand node timeout"));
+        when(deviceRepository.save(any(Device.class))).thenAnswer(i -> i.getArgument(0));
+
+        // La révocation ne doit PAS lever d'exception même si Algorand échoue
+        DeviceStatusResponse response = service.revokeDevice(device.getDid(), request);
+
+        // Blocage opérationnel maintenu (fail-closed)
+        assertThat(response.getStatus()).isEqualTo(DeviceStatus.REVOKED);
+        assertThat(response.isRevoked()).isTrue();
+        // Redis invalidé immédiatement malgré l'échec Algorand
+        verify(redisService).deleteDeviceCache(device.getDid());
+        verify(redisService).blacklistLastDeviceJwt(device.getDid(), 3600L);
+        verify(redisService).markDeviceRevoked(device.getDid(), 3600L);
+        // algorandTxId reste null — AlgorandPublishingRecoveryService le reprendra
+        assertThat(device.getAlgorandTxId()).isNull();
+        // Audit d'échec on-chain enregistré
+        verify(auditLogService).record(
+                eq(EventType.ALGORAND_PUBLICATION_FAILED),
+                eq(device.getDid()),
+                eq(ActorType.SYSTEM),
+                eq(false),
+                contains("ancrage on-chain")
+        );
+    }
+
+    @Test
     void suspendDevice_whenPending_shouldThrowInvalidDeviceStatusException() {
         Device device = activeDevice();
         device.setStatus(DeviceStatus.PENDING);

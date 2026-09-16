@@ -29,6 +29,14 @@ public interface DeviceRepository extends JpaRepository<Device, Long> {
     List<Device> findByStatus(DeviceStatus status);
 
     /**
+     * Dispositifs REVOKED dont la révocation n'a pas encore été ancrée sur
+     * Algorand (échec ou timeout de la soumission initiale). Utilisé par le
+     * service de recovery pour republier la transaction en arrière-plan sans
+     * bloquer le chemin critique de révocation (cf. RevocationService).
+     */
+    List<Device> findByStatusAndAlgorandTxIdIsNull(DeviceStatus status);
+
+    /**
      * Bug 5 fix : inclut les devices ACTIVE dont lastSeenAt est NULL.
      * Un device activé mais qui n'a jamais envoyé de signal (lastSeenAt null)
      * est considéré inactif depuis son activation et doit être suspendu.

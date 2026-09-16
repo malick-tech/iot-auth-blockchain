@@ -14,6 +14,7 @@ import com.iotauth.iot_auth.exception.DeviceSuspendedException;
 import com.iotauth.iot_auth.exception.InvalidDeviceStatusException;
 import com.iotauth.iot_auth.repository.DeviceRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RevocationService implements DeviceSuspensionPort {
@@ -157,12 +159,17 @@ public class RevocationService implements DeviceSuspensionPort {
             throw DeviceRevokedException.byDid(did);
         }
 
-        String txId = algorandService.publishDeviceLifecycleEvent(did, DeviceStatus.REVOKED.name(), request.getReason());
+        // Invalidation immédiate (chemin critique pour H1) : le statut REVOKED
+        // et l'invalidation Redis/JWT sont appliqués AVANT la soumission
+        // Algorand, pour que le blocage opérationnel ne dépende pas de la
+        // finalité blockchain (~4s sur LocalNet). PostgreSQL devient la
+        // source de vérité immédiate (fail-closed) ; l'ancrage on-chain suit
+        // en meilleur effort et sera repris par AlgorandPublishingRecoveryService
+        // s'il échoue ici (cf. algorandTxId encore NULL après ce bloc).
         LocalDateTime now = LocalDateTime.now();
         device.setStatus(DeviceStatus.REVOKED);
         device.setRevokedAt(now);
         device.setRevocationReason(request.getReason());
-        device.setAlgorandTxId(txId);
         Device savedDevice = deviceRepository.save(device);
 
         // Invalider immédiatement le cache device ET le JWT PoP actif.
@@ -171,6 +178,28 @@ public class RevocationService implements DeviceSuspensionPort {
         redisService.deleteDeviceCache(did);
         redisService.markDeviceRevoked(did, jwtTtlSeconds);
         redisService.blacklistLastDeviceJwt(did, jwtTtlSeconds);
+
+        String txId = null;
+        try {
+            txId = algorandService.publishDeviceLifecycleEvent(did, DeviceStatus.REVOKED.name(), request.getReason());
+            savedDevice.setAlgorandTxId(txId);
+            savedDevice = deviceRepository.save(savedDevice);
+        } catch (Exception e) {
+            // Le dispositif reste REVOKED et bloqué opérationnellement (Redis déjà
+            // invalidé ci-dessus) même si l'ancrage on-chain échoue momentanément.
+            // algorandTxId reste NULL : AlgorandPublishingRecoveryService.recoverRevocationAnchors()
+            // le détectera et retentera la publication en arrière-plan.
+            log.error("Échec de la soumission Algorand pour la révocation de did={} — blocage opérationnel maintenu (fail-closed), ancrage on-chain à reprendre : {}",
+                    did, e.getMessage());
+            auditLogService.record(
+                    EventType.ALGORAND_PUBLICATION_FAILED,
+                    did,
+                    ActorType.SYSTEM,
+                    false,
+                    "Échec de l'ancrage on-chain de la révocation — blocage off-chain déjà actif, reprise différée : " + e.getMessage()
+            );
+        }
+
         auditLogService.record(
                 EventType.DEVICE_REVOKED,
                 did,
