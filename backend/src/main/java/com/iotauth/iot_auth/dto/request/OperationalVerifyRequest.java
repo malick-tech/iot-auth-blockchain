@@ -17,6 +17,17 @@ public class OperationalVerifyRequest {
     @NotBlank
     private String proofSignature;
 
+    /**
+     * Identifiant unique généré par le dispositif pour CETTE requête précise
+     * (UUID ou équivalent). Contrairement à jti (constant pendant toute la
+     * durée de vie du JWT) et timestamp (seconde près, donc pas unique en cas
+     * de rejeu immédiat), requestId permet de marquer atomiquement chaque
+     * preuve comme consommée et de rejeter tout rejeu exact du même paquet
+     * pendant la fenêtre de fraîcheur.
+     */
+    @NotBlank
+    private String requestId;
+
     private String requestedPermission;
 
     /**

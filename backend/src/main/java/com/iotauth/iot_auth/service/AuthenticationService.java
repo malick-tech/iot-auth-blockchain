@@ -42,6 +42,7 @@ public class AuthenticationService {
     private final AnomalyDetectionService anomalyService;
     private final AlgorandService algorandService;
     private final VcService vcService;
+    private final AdminKeyService adminKeyService;
 
     @Value("${iot.auth.nonce-ttl-seconds:60}")
     private long nonceTtl;
@@ -155,7 +156,36 @@ public class AuthenticationService {
                     return new InvalidSignatureException("Credential not found in presentation");
                 });
 
-        // 4bis. Verify(Kpub_admin, VC) - signature de l'Issuer sur le VC
+        // 4bis. Liaison VC.subject == DID authentifié. Sans ce contrôle, un VC
+        // cryptographiquement valide mais appartenant à un AUTRE dispositif
+        // (vcId deviné, réutilisé, ou VP forgée par un dispositif malveillant
+        // qui connaît un vcId d'autrui) serait accepté tant que la signature
+        // VP elle-même vérifie contre la clé du DID demandeur. La signature VP
+        // prouve la possession de la clé du DID demandeur, PAS que le VC
+        // présenté lui a bien été délivré.
+        if (!vc.getSubjectDid().equals(request.getDid())) {
+            log.warn("VC.subject ({}) ne correspond pas au DID authentifié ({}) — vcId={}",
+                    vc.getSubjectDid(), request.getDid(), vcId);
+            auditAuthenticationRejected(request.getDid(),
+                    "VC subject mismatch: credential appartient à " + vc.getSubjectDid());
+            throw new InvalidSignatureException("Verifiable Credential subject does not match requesting DID");
+        }
+
+        // 4ter. Liaison VC.issuer == DID de l'Admin attendu. verifyIssuerSignature
+        // ci-dessous vérifie déjà que la signature provient bien de la clé de
+        // l'Admin configuré ; ce contrôle sur le champ déclaratif "issuer" du VC
+        // détecte en plus toute incohérence entre le contenu affiché du VC et
+        // l'autorité qui l'a effectivement signé.
+        String expectedAdminDid = adminKeyService.getAdminDid();
+        if (!expectedAdminDid.equals(vc.getIssuerDid())) {
+            log.warn("VC.issuer ({}) ne correspond pas à l'Admin attendu ({}) — vcId={}",
+                    vc.getIssuerDid(), expectedAdminDid, vcId);
+            auditAuthenticationRejected(request.getDid(),
+                    "VC issuer mismatch: attendu " + expectedAdminDid + ", obtenu " + vc.getIssuerDid());
+            throw new InvalidSignatureException("Verifiable Credential issuer does not match expected Admin DID");
+        }
+
+        // 4quater. Verify(Kpub_admin, VC) - signature de l'Issuer sur le VC
         if (!vcService.verifyIssuerSignature(vc.getRawCredential())) {
             log.warn("Signature issuer invalide sur VC: {} pour DID: {}", vcId, request.getDid());
             auditAuthenticationRejected(request.getDid(), "Invalid issuer signature on VC");

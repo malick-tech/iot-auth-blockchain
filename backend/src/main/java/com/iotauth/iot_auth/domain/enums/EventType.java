@@ -41,6 +41,7 @@ public enum EventType {
     // Permissions & Security
     PERMISSION_VIOLATION,
     ANOMALY_DETECTED,
+    REPLAY_ATTEMPT_DETECTED,
 
     // Blockchain Events
     ALGORAND_PUBLICATION_FAILED,

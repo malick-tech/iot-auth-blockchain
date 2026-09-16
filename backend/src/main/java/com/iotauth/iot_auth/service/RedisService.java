@@ -268,6 +268,21 @@ public class RedisService {
         return Boolean.TRUE.equals(redisTemplate.hasKey(deviceRevokedKey(did)));
     }
 
+    /**
+     * Marque atomiquement un requestId de preuve opérationnelle comme consommé.
+     * Contrairement à markVpUsed/isVpUsed (check puis set, en deux opérations),
+     * on utilise ici SET NX pour éliminer toute fenêtre de course : si deux
+     * requêtes portant le même (did, requestId) arrivent en même temps, une
+     * seule obtiendra true.
+     *
+     * @return true si ce requestId n'avait jamais été vu (première utilisation,
+     *         donc valide) ; false s'il a déjà été consommé (rejeu détecté).
+     */
+    public boolean markOperationalProofUsedIfAbsent(String did, String requestId, long ttlSeconds) {
+        Boolean firstUse = valueOps.setIfAbsent(operationalProofKey(did, requestId), "used", Duration.ofSeconds(ttlSeconds));
+        return Boolean.TRUE.equals(firstUse);
+    }
+
     // ============= Key Prefix Helpers =============
 
     private String nonceKey(String did) {
@@ -304,5 +319,9 @@ public class RedisService {
 
     private String lastJtiKey(String did) {
         return "last_jti:" + did;
+    }
+
+    private String operationalProofKey(String did, String requestId) {
+        return "op_proof_used:" + did + ":" + requestId;
     }
 }

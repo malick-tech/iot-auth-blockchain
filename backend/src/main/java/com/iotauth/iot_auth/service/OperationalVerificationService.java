@@ -129,14 +129,17 @@ public class OperationalVerificationService {
             return rejected(request.getDid(), "Preuve de possession non fraîche");
         }
 
-        // m = did || jti || timestamp || requestedPermission || H(metricsJson) — cf. chapitre 3.
+        // m = did || jti || timestamp || requestId || requestedPermission || H(metricsJson) — cf. chapitre 3.
+        // requestId (généré par le dispositif à chaque requête) est ce qui empêche le rejeu
+        // exact d'un paquet valide pendant la fenêtre de fraîcheur ; jti et timestamp seuls
+        // ne suffisent pas puisqu'un attaquant peut rejouer tel quel un paquet intercepté.
         // On hache la chaîne metricsJson exactement telle que reçue (aucune re-sérialisation)
         // pour ne pas réintroduire de risque de canonicalisation JSON.
         String metricsJson = request.getMetricsJson() == null ? "" : request.getMetricsJson();
         String metricsHash = CryptoUtils.hashSha256(metricsJson.getBytes(StandardCharsets.UTF_8));
         String requestedPermissionPart = request.getRequestedPermission() == null ? "" : request.getRequestedPermission();
         String proofMessage = request.getDid() + ":" + claims.getJti() + ":" + request.getTimestamp()
-                + ":" + requestedPermissionPart + ":" + metricsHash;
+                + ":" + request.getRequestId() + ":" + requestedPermissionPart + ":" + metricsHash;
         boolean proofValid = CryptoUtils.verifyEd25519(
                 publicKeyBase32,
                 proofMessage,
@@ -144,6 +147,22 @@ public class OperationalVerificationService {
         );
         if (!proofValid) {
             return rejected(request.getDid(), "Preuve de possession invalide");
+        }
+
+        // Anti-rejeu strict : ce requestId précis ne doit jamais avoir été accepté
+        // auparavant pour ce DID. Marquage atomique (SET NX) pour éviter toute
+        // fenêtre de course entre deux requêtes concurrentes portant le même id.
+        boolean firstUse = redisService.markOperationalProofUsedIfAbsent(
+                request.getDid(), request.getRequestId(), popFreshnessSeconds);
+        if (!firstUse) {
+            auditLogService.record(
+                    EventType.REPLAY_ATTEMPT_DETECTED,
+                    request.getDid(),
+                    ActorType.DEVICE,
+                    false,
+                    "Rejeu détecté : requestId " + request.getRequestId() + " déjà consommé (cache MISS)"
+            );
+            return rejected(request.getDid(), "Rejeu détecté : preuve déjà utilisée");
         }
 
         List<String> permissions = vcRepository

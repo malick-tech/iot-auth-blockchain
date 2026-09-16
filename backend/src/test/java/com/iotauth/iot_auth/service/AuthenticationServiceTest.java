@@ -48,6 +48,7 @@ class AuthenticationServiceTest {
     @Mock private AnomalyDetectionService anomalyService;
     @Mock private AlgorandService algorandService;
     @Mock private VcService vcService;
+    @Mock private AdminKeyService adminKeyService;
 
     private AuthenticationService service;
 
@@ -55,13 +56,14 @@ class AuthenticationServiceTest {
     private static final String CHALLENGE = "test-nonce-123";
     private static final String VP = "{\"type\":\"VerifiablePresentation\",\"verifiableCredential\":[{\"id\":\"vc-001\"}]}";
     private static final String SIGNATURE = "base64sig";
+    private static final String ADMIN_DID = "did:algo:ADMIN";
 
     @BeforeEach
     void setUp() {
         service = new AuthenticationService(
                 deviceRepository, vcRepository, jwtService,
                 vpVerificationService, redisService, auditLogService,
-                anomalyService, algorandService, vcService
+                anomalyService, algorandService, vcService, adminKeyService
         );
         ReflectionTestUtils.setField(service, "nonceTtl", 60L);
     }
@@ -158,7 +160,6 @@ class AuthenticationServiceTest {
                 .isInstanceOf(InvalidSignatureException.class)
                 .hasMessageContaining("Challenge");
 
-        // Le nonce doit être consommé même en cas d'échec de comparaison
         verify(redisService).deleteNonce(DID);
     }
 
@@ -193,6 +194,48 @@ class AuthenticationServiceTest {
     }
 
     @Test
+    void authenticateDevice_whenVcSubjectMismatch_shouldThrowInvalidSignatureException() {
+        Device device = activeDevice();
+        VerifiableCredential vc = validVc();
+        vc.setSubjectDid("did:algo:OTHER_DEVICE"); // VC valide mais appartient à un autre dispositif
+
+        when(deviceRepository.findByDid(DID)).thenReturn(Optional.of(device));
+        when(redisService.getNonce(DID)).thenReturn(CHALLENGE);
+        when(vpVerificationService.verifyPresentation(VP, CHALLENGE, SIGNATURE, device.getPublicKey()))
+                .thenReturn(true);
+        when(vpVerificationService.extractVcIdFromPresentation(VP)).thenReturn("vc-001");
+        when(vcRepository.findByVcId("vc-001")).thenReturn(Optional.of(vc));
+
+        assertThatThrownBy(() -> service.authenticateDevice(vpRequest()))
+                .isInstanceOf(InvalidSignatureException.class)
+                .hasMessageContaining("subject");
+
+        // La vérification de signature issuer ne doit pas être atteinte
+        verify(vcService, never()).verifyIssuerSignature(anyString());
+    }
+
+    @Test
+    void authenticateDevice_whenVcIssuerMismatch_shouldThrowInvalidSignatureException() {
+        Device device = activeDevice();
+        VerifiableCredential vc = validVc();
+        vc.setIssuerDid("did:algo:ROGUE_ADMIN"); // subject correct mais émetteur inattendu
+
+        when(deviceRepository.findByDid(DID)).thenReturn(Optional.of(device));
+        when(redisService.getNonce(DID)).thenReturn(CHALLENGE);
+        when(vpVerificationService.verifyPresentation(VP, CHALLENGE, SIGNATURE, device.getPublicKey()))
+                .thenReturn(true);
+        when(vpVerificationService.extractVcIdFromPresentation(VP)).thenReturn("vc-001");
+        when(vcRepository.findByVcId("vc-001")).thenReturn(Optional.of(vc));
+        when(adminKeyService.getAdminDid()).thenReturn(ADMIN_DID);
+
+        assertThatThrownBy(() -> service.authenticateDevice(vpRequest()))
+                .isInstanceOf(InvalidSignatureException.class)
+                .hasMessageContaining("issuer");
+
+        verify(vcService, never()).verifyIssuerSignature(anyString());
+    }
+
+    @Test
     void authenticateDevice_whenVcExpired_shouldThrowInvalidSignatureException() {
         Device device = activeDevice();
         VerifiableCredential vc = expiredVc();
@@ -203,6 +246,7 @@ class AuthenticationServiceTest {
                 .thenReturn(true);
         when(vpVerificationService.extractVcIdFromPresentation(VP)).thenReturn("vc-001");
         when(vcRepository.findByVcId("vc-001")).thenReturn(Optional.of(vc));
+        when(adminKeyService.getAdminDid()).thenReturn(ADMIN_DID);
         when(vcService.verifyIssuerSignature(vc.getRawCredential())).thenReturn(true);
 
         assertThatThrownBy(() -> service.authenticateDevice(vpRequest()))
@@ -221,6 +265,7 @@ class AuthenticationServiceTest {
                 .thenReturn(true);
         when(vpVerificationService.extractVcIdFromPresentation(VP)).thenReturn("vc-001");
         when(vcRepository.findByVcId("vc-001")).thenReturn(Optional.of(vc));
+        when(adminKeyService.getAdminDid()).thenReturn(ADMIN_DID);
         when(vcService.verifyIssuerSignature(vc.getRawCredential())).thenReturn(true);
         when(algorandService.readBox(eq(AlgorandBoxPrefix.STATUS), eq(DID)))
                 .thenReturn(Optional.of("ACTIVE".getBytes()));
@@ -242,6 +287,7 @@ class AuthenticationServiceTest {
                 .thenReturn(true);
         when(vpVerificationService.extractVcIdFromPresentation(VP)).thenReturn("vc-001");
         when(vcRepository.findByVcId("vc-001")).thenReturn(Optional.of(vc));
+        when(adminKeyService.getAdminDid()).thenReturn(ADMIN_DID);
         when(vcService.verifyIssuerSignature(vc.getRawCredential())).thenReturn(true);
         when(algorandService.readBox(eq(AlgorandBoxPrefix.STATUS), eq(DID)))
                 .thenReturn(Optional.of("REVOKED".getBytes()));
@@ -264,6 +310,7 @@ class AuthenticationServiceTest {
                 .thenReturn(true);
         when(vpVerificationService.extractVcIdFromPresentation(VP)).thenReturn("vc-001");
         when(vcRepository.findByVcId("vc-001")).thenReturn(Optional.of(vc));
+        when(adminKeyService.getAdminDid()).thenReturn(ADMIN_DID);
         when(vcService.verifyIssuerSignature(vc.getRawCredential())).thenReturn(true);
         when(algorandService.readBox(eq(AlgorandBoxPrefix.STATUS), eq(DID)))
                 .thenReturn(Optional.of("ACTIVE".getBytes()));
@@ -296,6 +343,7 @@ class AuthenticationServiceTest {
         VerifiableCredential vc = new VerifiableCredential();
         vc.setVcId("vc-001");
         vc.setSubjectDid(DID);
+        vc.setIssuerDid(ADMIN_DID);
         vc.setExpirationDate(LocalDateTime.now().plusDays(30));
         vc.setPermissions(List.of("device:read", "device:operate"));
         vc.setRawCredential("{\"id\":\"vc-001\",\"proof\":{}}");
