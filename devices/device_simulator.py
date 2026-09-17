@@ -7,6 +7,7 @@ import random
 import signal
 import sys
 import time
+import uuid
 from pathlib import Path
 
 import nacl.signing
@@ -376,8 +377,13 @@ def publish_operational_request(client, state: dict, permission: str, master_key
     metrics_json = json.dumps(metrics, sort_keys=True, separators=(",", ":"))
     metrics_hash = hash_metrics_json(metrics_json)
 
-    # m = did || jti || timestamp || requestedPermission || H(metricsJson)
-    message = f"{state['did']}:{claims['jti']}:{timestamp}:{permission or ''}:{metrics_hash}"
+    # requestId : identifiant unique par requête (contrairement à jti, constant
+    # pendant toute la durée de vie du JWT). C'est ce qui empêche un attaquant
+    # de rejouer tel quel un paquet intercepté pendant la fenêtre de fraîcheur.
+    request_id = uuid.uuid4().hex
+
+    # m = did || jti || timestamp || requestId || requestedPermission || H(metricsJson)
+    message = f"{state['did']}:{claims['jti']}:{timestamp}:{request_id}:{permission or ''}:{metrics_hash}"
     proof_signature = sign_b64url(signing_key, message)
 
     topic = f"iot/{state['did']}/operational/request"
@@ -385,11 +391,12 @@ def publish_operational_request(client, state: dict, permission: str, master_key
         "jwt": state["jwt"],
         "timestamp": timestamp,
         "proofSignature": proof_signature,
+        "requestId": request_id,
         "requestedPermission": permission,
         "metricsJson": metrics_json,
     }
     client.publish(topic, json.dumps(payload), qos=1)
-    print(f"[TX] {topic} permission={permission} ts={timestamp}")
+    print(f"[TX] {topic} permission={permission} ts={timestamp} requestId={request_id}")
 
 
 class EnrollmentAbandoned(RuntimeError):

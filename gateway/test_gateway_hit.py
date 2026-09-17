@@ -80,12 +80,13 @@ def test_via_gateway(signing_key, did, jwt):
     jti = claims["jti"]
 
     timestamp = int(time.time())
+    request_id = "test-request-" + str(timestamp)
     requested_permission = "device:read"
     metrics_json = ""  # aucune métrique dans ce test
     metrics_hash = base64.urlsafe_b64encode(
         hashlib.sha256(metrics_json.encode("utf-8")).digest()
     ).decode("utf-8").rstrip("=")
-    proof_message = f"{did}:{jti}:{timestamp}:{requested_permission}:{metrics_hash}"
+    proof_message = f"{did}:{jti}:{timestamp}:{request_id}:{requested_permission}:{metrics_hash}"
     proof_signature = sign_b64url(signing_key, proof_message)
 
     request_topic = f"iot/{did}/operational/request"
@@ -106,6 +107,7 @@ def test_via_gateway(signing_key, did, jwt):
         "jwt": jwt,
         "timestamp": timestamp,
         "proofSignature": proof_signature,
+        "requestId": request_id,
         "requestedPermission": requested_permission,
         "metricsJson": metrics_json,
     }
