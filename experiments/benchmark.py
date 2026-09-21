@@ -15,13 +15,20 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import uuid
 from pathlib import Path
 
 import paho.mqtt.client as mqtt
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "devices"))
-from device_simulator import decode_jwt_payload, load_or_create_master_key, sign_b64url, signing_key_from_state  # noqa: E402
+from device_simulator import (  # noqa: E402
+    decode_jwt_payload,
+    hash_metrics_json,
+    load_or_create_master_key,
+    sign_b64url,
+    signing_key_from_state,
+)
 
 
 def load_config(path: Path) -> dict:
@@ -64,19 +71,33 @@ def clear_cache(config: dict, did: str) -> None:
 def operational_payload(state: dict, signing_key, permission: str) -> dict:
     claims = decode_jwt_payload(state["jwt"])
     timestamp = int(time.time())
+    request_id = uuid.uuid4().hex
+
+    # Métriques sérialisées une seule fois, forme canonique compacte —
+    # cette chaîne exacte est à la fois transmise et signée (cf. device_simulator.py).
+    metrics = {
+        "temperatureC": 22.5,
+        "humidityPercent": 50.0,
+        "batteryPercent": 99,
+        "uptimeSeconds": 1,
+        "measuredAt": timestamp,
+    }
+    metrics_json = json.dumps(metrics, sort_keys=True, separators=(",", ":"))
+    metrics_hash = hash_metrics_json(metrics_json)
+
+    # m = did || jti || timestamp || requestId || requestedPermission || H(metricsJson)
+    # — même formule que device_simulator.publish_operational_request et
+    # OperationalVerificationService.verify côté backend.
+    message = f"{state['did']}:{claims['jti']}:{timestamp}:{request_id}:{permission or ''}:{metrics_hash}"
+
     return {
         "did": state["did"],
         "jwt": state["jwt"],
         "timestamp": timestamp,
-        "proofSignature": sign_b64url(signing_key, f"{claims['jti']}:{timestamp}"),
+        "requestId": request_id,
+        "proofSignature": sign_b64url(signing_key, message),
         "requestedPermission": permission,
-        "metrics": {
-            "temperatureC": 22.5,
-            "humidityPercent": 50.0,
-            "batteryPercent": 99,
-            "uptimeSeconds": 1,
-            "measuredAt": timestamp,
-        },
+        "metricsJson": metrics_json,
     }
 
 
