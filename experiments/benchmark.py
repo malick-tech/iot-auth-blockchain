@@ -48,7 +48,8 @@ def http_post(url: str, payload: dict, timeout: float) -> tuple[int, dict]:
             body = response.read().decode("utf-8")
             return response.status, json.loads(body) if body else {}
     except urllib.error.HTTPError as error:
-        body = error.read().decode("utf-8")
+        raw = error.read()
+        body = raw.decode("utf-8", errors="replace")
         try:
             body = json.loads(body)
         except json.JSONDecodeError:
@@ -142,9 +143,15 @@ def run_scenario(config: dict, state: dict, signing_key, scenario: str, rows: li
                 started = time.perf_counter()
                 if scenario.startswith("mqtt"):
                     ok, response = mqtt_request(client, request_topic, response_topic, payload, timeout)
+                    if repetition == 1 and sequence == 1 and not (ok and response.get("authorized")):
+                        print(f"=== DEBUG {scenario} ok={ok} ===")
+                        print(json.dumps(response, indent=2, ensure_ascii=False))
                     success = ok and bool(response.get("authorized") or response.get("ok"))
                 else:
                     status, response = http_post(direct_url, payload, timeout)
+                    if not (status == 200 and isinstance(response, dict) and response.get("authorized")) and repetition == 1 and sequence == 1:
+                        print(f"=== DEBUG {scenario} status={status} ===")
+                        print(json.dumps(response, indent=2, ensure_ascii=False))
                     success = status == 200 and bool(response.get("authorized"))
                 elapsed_ms = (time.perf_counter() - started) * 1000
                 rows.append({
