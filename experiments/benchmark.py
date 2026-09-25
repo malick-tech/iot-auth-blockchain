@@ -7,6 +7,7 @@ with a forced cache MISS, and direct HTTP calls to the backend.
 
 import argparse
 import csv
+import http.client
 import json
 import os
 import socket
@@ -14,6 +15,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from pathlib import Path
@@ -36,10 +38,36 @@ def load_config(path: Path) -> dict:
         return json.load(stream)
 
 
-def http_post(url: str, payload: dict, timeout: float) -> tuple[int, dict]:
+def http_post(url: str, payload: dict, timeout: float, connection: "http.client.HTTPConnection | None" = None) -> tuple[int, dict]:
+    body_bytes = json.dumps(payload).encode("utf-8")
+
+    if connection is not None:
+        # Connexion HTTP persistante (keep-alive) : équitable par rapport au
+        # chemin MQTT MISS, où Node-RED réutilise sa propre connexion vers le
+        # backend. Sans ça, backend_direct payait une poignée de main TCP à
+        # CHAQUE requête, ce qui gonflait sa latence indépendamment du coût
+        # réel de vérification côté backend.
+        parsed = urllib.parse.urlsplit(url)
+        path = parsed.path + (f"?{parsed.query}" if parsed.query else "")
+        connection.request(
+            "POST", path, body=body_bytes,
+            headers={"Content-Type": "application/json", "Connection": "keep-alive"}
+        )
+        response = connection.getresponse()
+        raw = response.read()
+        status = response.status
+        if status == 200:
+            text = raw.decode("utf-8")
+            return status, json.loads(text) if text else {}
+        text = raw.decode("utf-8", errors="replace")
+        try:
+            return status, json.loads(text)
+        except json.JSONDecodeError:
+            return status, {"message": text}
+
     request = urllib.request.Request(
         url,
-        data=json.dumps(payload).encode("utf-8"),
+        data=body_bytes,
         headers={"Content-Type": "application/json"},
         method="POST",
     )
@@ -129,10 +157,14 @@ def run_scenario(config: dict, state: dict, signing_key, scenario: str, rows: li
     direct_url = f"{config['backend_url'].rstrip('/')}/api/v1/operational/verify"
 
     client = None
+    connection = None
     if scenario.startswith("mqtt"):
         client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
         client.connect(config["mqtt_host"], int(config["mqtt_port"]))
         client.loop_start()
+    else:
+        parsed_backend = urllib.parse.urlsplit(config["backend_url"])
+        connection = http.client.HTTPConnection(parsed_backend.hostname, parsed_backend.port, timeout=timeout)
 
     try:
         for repetition in range(1, int(config["repetitions"]) + 1):
@@ -148,7 +180,7 @@ def run_scenario(config: dict, state: dict, signing_key, scenario: str, rows: li
                         print(json.dumps(response, indent=2, ensure_ascii=False))
                     success = ok and bool(response.get("authorized") or response.get("ok"))
                 else:
-                    status, response = http_post(direct_url, payload, timeout)
+                    status, response = http_post(direct_url, payload, timeout, connection=connection)
                     if not (status == 200 and isinstance(response, dict) and response.get("authorized")) and repetition == 1 and sequence == 1:
                         print(f"=== DEBUG {scenario} status={status} ===")
                         print(json.dumps(response, indent=2, ensure_ascii=False))
@@ -169,6 +201,8 @@ def run_scenario(config: dict, state: dict, signing_key, scenario: str, rows: li
         if client is not None:
             client.loop_stop()
             client.disconnect()
+        if connection is not None:
+            connection.close()
 
 
 def percentile(values: list[float], fraction: float) -> float:

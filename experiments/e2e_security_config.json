@@ -1,0 +1,9 @@
+{
+  "backend_url": "http://localhost:8083",
+  "mqtt_host": "localhost",
+  "mqtt_port": 1883,
+  "app_id": 1014,
+  "gateway_timeout_seconds": 20,
+  "admin_username": "admin",
+  "admin_password": "REMPLACE_MOI"
+}
