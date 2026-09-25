@@ -136,8 +136,13 @@ def raw_operational_request(
     request_id_override: str | None = None, permission: str = "device:read",
     permission_sent: str | None = None, metrics_override: dict | None = None,
     metrics_sent_override: str | None = None, sign_with: nacl.signing.SigningKey | None = None,
-    timeout: float = 8.0,
+    jwt_sent_override: str | None = None, timeout: float = 8.0,
 ) -> tuple[bool, dict]:
+    # jwt sert à dériver les claims (jti) — c'est toujours un JWT valide et
+    # décodable. jwt_sent_override, s'il est fourni, est ce qui part
+    # réellement dans le payload envoyé au Gateway : un vrai attaquant
+    # réutilise le jti d'un JWT valide qu'il a intercepté, il n'a pas besoin
+    # de décoder la version altérée qu'il fabrique pour l'attaque.
     claims = decode_jwt_payload(jwt)
     jti = jti_override if jti_override is not None else claims["jti"]
     timestamp = timestamp_override if timestamp_override is not None else int(time.time())
@@ -155,7 +160,7 @@ def raw_operational_request(
     proof_signature = sign_b64url(signer, message)
 
     payload = {
-        "jwt": jwt,
+        "jwt": jwt_sent_override if jwt_sent_override is not None else jwt,
         "timestamp": timestamp,
         "proofSignature": proof_signature,
         "requestId": request_id,
@@ -319,12 +324,16 @@ def run_attack_phase(admin: AdminClient, config: dict) -> None:
         expect_rejected("horodatage expiré (hors fenêtre de fraîcheur)",
                          permission="device:read", timestamp_override=int(time.time()) - 120)
 
-        # 7. JWT altéré (un caractère modifié dans le payload)
+        # 7. JWT altéré (un caractère modifié dans le payload).
+        # La signature PoP est calculée sur le JWT original (jti correct),
+        # mais le JWT envoyé est corrompu — simule un attaquant qui modifie
+        # le JWT sans pouvoir recalculer la signature admin Ed25519.
         parts = state["jwt"].split(".")
         if len(parts) == 3:
             tampered_payload = parts[1][:-1] + ("A" if parts[1][-1] != "A" else "B")
             tampered_jwt = ".".join([parts[0], tampered_payload, parts[2]])
-            ok, resp = raw_operational_request(mqtt_client, did, tampered_jwt, signing_key, permission="device:read")
+            ok, resp = raw_operational_request(mqtt_client, did, state["jwt"], signing_key,
+                                               permission="device:read", jwt_sent_override=tampered_jwt)
             rejected = (not ok) or (resp.get("authorized") is not True)
             record(phase, "JWT altéré (payload modifié)", "authorized=False (rejeté)",
                    f"authorized={resp.get('authorized')}" if ok else "aucune réponse", rejected)
