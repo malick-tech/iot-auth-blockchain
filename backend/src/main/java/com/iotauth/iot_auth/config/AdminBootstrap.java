@@ -20,19 +20,24 @@ public class AdminBootstrap implements CommandLineRunner {
     @Value("${iot.auth.admin.bootstrap-username:admin}")
     private String bootstrapUsername;
 
-    @Value("${iot.auth.admin.bootstrap-password:changeme123}")
+    @Value("${iot.auth.admin.bootstrap-password:}")
     private String bootstrapPassword;
 
     @Override
     public void run(String... args) {
         if (adminUserRepository.count() == 0) {
+            if (bootstrapPassword == null || bootstrapPassword.length() < 12) {
+                log.error("Aucun compte admin et aucun mot de passe de bootstrap valide : definir " +
+                        "IOT_AUTH_ADMIN_BOOTSTRAP_PASSWORD (12 caracteres minimum) pour creer le compte initial.");
+                return;
+            }
             AdminUser admin = new AdminUser();
             admin.setUsername(bootstrapUsername);
             admin.setFullName(bootstrapUsername);
             admin.setPasswordHash(passwordEncoder.encode(bootstrapPassword));
             adminUserRepository.save(admin);
-            log.warn("Aucun compte admin trouvé - compte '{}' créé avec le mot de passe par défaut. " +
-                    "Change-le rapidement ou définis iot.auth.admin.bootstrap-password.", bootstrapUsername);
+            log.warn("Aucun compte admin trouvé - compte '{}' créé avec iot.auth.admin.bootstrap-password. " +
+                    "Changez ce mot de passe rapidement.", bootstrapUsername);
             return;
         }
 

@@ -24,7 +24,7 @@ public class VcService {
 
     private final VcRepository vcRepository;
     private final AdminKeyService adminKeyService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     @Value("${iot.auth.vc-validity-days:365}")
     private int vcValidityDays;
