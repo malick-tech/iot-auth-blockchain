@@ -1,6 +1,7 @@
 package com.iotauth.iot_auth.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.iotauth.iot_auth.dto.response.JwtPopResponse;
 import com.iotauth.iot_auth.util.CryptoUtils;
@@ -22,7 +23,7 @@ public class JwtService {
 
     private final AdminKeyService adminKeyService;
     private final RedisService redisService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     @Value("${iot.auth.jwt-ttl-seconds:3600}")
     private long jwtTtlSeconds;
@@ -131,7 +132,7 @@ public class JwtService {
     }
 
     public Map<String, Object> readJsonMap(String json) throws JsonProcessingException {
-        return objectMapper.readValue(json, Map.class);
+        return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
     }
 
     public static class JwtClaims {

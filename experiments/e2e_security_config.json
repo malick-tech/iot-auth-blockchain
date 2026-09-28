@@ -5,5 +5,5 @@
   "app_id": 1014,
   "gateway_timeout_seconds": 20,
   "admin_username": "admin",
-  "admin_password": "REMPLACE_MOI"
+  "admin_password": "CHANGE_ME"
 }

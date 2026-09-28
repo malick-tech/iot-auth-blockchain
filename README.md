@@ -77,21 +77,17 @@ le secret partagé de la gateway et l'App ID LocalNet :
 
 ```powershell
 $env:ALGORAND_APP_ID="1014"
-$env:IOT_AUTH_GATEWAY_SHARED_SECRET="dev-gateway-secret"
+$env:IOT_AUTH_GATEWAY_SHARED_SECRET="$(openssl rand -hex 32)"
+$env:IOT_AUTH_ADMIN_PRIVATE_KEY_BASE64="$(openssl rand -base64 32)"
+$env:IOT_AUTH_ADMIN_BOOTSTRAP_PASSWORD="<mot de passe de 12 caractères minimum>"
 $env:IOT_AUTH_ADMIN_JWT_SECRET="$(openssl rand -base64 64)"
 ```
 
-Le profil `dev` accepte aussi une valeur locale brute ou invalide en dernier
-recours, mais une vraie clé Base64 persistante est obligatoire en production.
+Aucun secret n'est fourni par défaut dans le dépôt. La clé privée Issuer et le secret de la gateway sont obligatoires ; en profil `dev`, un secret JWT admin absent est remplacé par une clé éphémère aléatoire (les sessions admin sont perdues au redémarrage). Voir `.env.example` pour la liste complète des variables.
 
 ## Compte Admin
 
-En développement, si aucun compte admin n'existe, le backend crée un compte par défaut :
-
-- Identifiant : `admin`
-- Mot de passe : `changeme123`
-
-Ce mot de passe doit être changé ou remplacé par une configuration dédiée avant toute démonstration sensible.
+Au premier démarrage, si aucun compte admin n'existe, le backend crée le compte `admin` **uniquement** si `IOT_AUTH_ADMIN_BOOTSTRAP_PASSWORD` est défini (12 caractères minimum). Aucun mot de passe par défaut n'existe.
 
 ## Base de Données et Cache
 
@@ -182,7 +178,7 @@ Connexion admin :
 $login = Invoke-RestMethod -Method Post `
   -Uri http://localhost:8083/api/v1/admin/auth/login `
   -ContentType "application/json" `
-  -Body '{"username":"admin","password":"changeme123"}'
+  -Body (@{ username = "admin"; password = $env:IOT_AUTH_ADMIN_BOOTSTRAP_PASSWORD } | ConvertTo-Json)
 ```
 
 Lecture des logs filtrés par admin :

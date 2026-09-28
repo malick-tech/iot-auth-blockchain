@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_DB: iot_auth_db
       POSTGRES_USER: malick
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-1234}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD doit etre defini (voir .env.example)}
     ports:
       - '5432:5432'
     volumes:
@@ -32,8 +32,8 @@ services:
   pgadmin:
     image: dpage/pgadmin4:8.4
     environment:
-      PGADMIN_DEFAULT_EMAIL: malickass1998@gmail.com
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:?PGADMIN_DEFAULT_EMAIL doit etre defini (voir .env.example)}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:?PGADMIN_DEFAULT_PASSWORD doit etre defini (voir .env.example)}
     ports:
       - '5050:80'
     depends_on:

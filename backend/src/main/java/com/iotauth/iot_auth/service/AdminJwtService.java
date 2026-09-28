@@ -51,8 +51,9 @@ public class AdminJwtService {
 
         if (effectiveSecret.isBlank() || keyBytes.length < 64) {
             if (isDevelopmentLikeProfile) {
-                log.warn("Secret JWT admin absent ou trop court pour le profil local; utilisation d'un secret de dev local pour eviter le blocage du contexte.");
-                keyBytes = Base64.getDecoder().decode("ZGV2LWFkbWluLWp3dC1zZWNyZXQtZGV2LWFkbWluLWp3dC1zZWNyZXQtZGV2LWFkbWluLWp3dC1zZWNyZXQtMTIzNDU2Nzg5MA==");
+                log.warn("Secret JWT admin absent ou trop court pour le profil local; utilisation d'un secret ephemere aleatoire (les sessions admin seront invalidees au redemarrage).");
+                keyBytes = new byte[64];
+                new java.security.SecureRandom().nextBytes(keyBytes);
             } else {
                 log.error("======================================================================");
                 log.error("ERREUR DE CONFIGURATION : iot.auth.admin.jwt-secret est absent ou trop court.");
