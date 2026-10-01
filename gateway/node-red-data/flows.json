@@ -1,4 +1,4 @@
-[
+﻿[
     {
         "id": "d4fab3eceb603e63",
         "type": "tab",
@@ -88,7 +88,7 @@
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
-        "initialize": "// Bug 2 fix : crÃ©er la connexion Redis une seule fois au dÃ©marrage du nÅ“ud.\n// Dans Node-RED, require() n'est pas disponible dans initialize â€”\n// on utilise le module dÃ©clarÃ© dans 'libs' (var: Redis, module: ioredis).\nconst client = new Redis({\n    host: 'host.docker.internal',\n    port: 6379,\n    lazyConnect: false,\n    retryStrategy: (times) => Math.min(times * 100, 3000)\n});\nclient.on('error', (err) => node.warn('[Cache] Redis error: ' + err.message));\nclient.on('ready', ()    => node.log('[Cache] Redis connectÃ©'));\ncontext.set('redisClient', client);",
+        "initialize": "// Bug 2 fix : crÃ©er la connexion Redis une seule fois au dÃ©marrage du nÅ“ud.\n// Dans Node-RED, require() n'est pas disponible dans initialize â€”\n// on utilise le module dÃ©clarÃ© dans 'libs' (var: Redis, module: ioredis).\nconst client = new Redis({\n    host: 'host.docker.internal',\n    port: 6379,\n    username: env.get('REDIS_GATEWAY_USERNAME') || undefined,\n    password: env.get('REDIS_GATEWAY_PASSWORD') || undefined,\n    lazyConnect: false,\n    retryStrategy: (times) => Math.min(times * 100, 3000)\n});\nclient.on('error', (err) => node.warn('[Cache] Redis error: ' + err.message));\nclient.on('ready', ()    => node.log('[Cache] Redis connectÃ©'));\ncontext.set('redisClient', client);",
         "finalize": "// Fermer proprement la connexion quand le nÅ“ud est arrÃªtÃ©\nconst redis = context.get('redisClient');\nif (redis) {\n    redis.disconnect();\n    context.set('redisClient', null);\n}",
         "libs": [
             {
@@ -142,7 +142,7 @@
         "outputs": 3,
         "timeout": 0,
         "noerr": 0,
-        "initialize": "// Connexion Redis persistante pour le marquage anti-rejeu (SET NX)\n// des requestId consommes en cache HIT, meme patron que le noeud\n// \"Lire cache device (Redis)\" qui a deja une connexion equivalente.\nconst client = new Redis({\n    host: 'host.docker.internal',\n    port: 6379,\n    lazyConnect: false,\n    retryStrategy: (times) => Math.min(times * 100, 3000)\n});\nclient.on('error', (err) => node.warn('[HIT] Redis error: ' + err.message));\nclient.on('ready', ()    => node.log('[HIT] Redis connecte (anti-rejeu)'));\ncontext.set('antiReplayRedisClient', client);",
+        "initialize": "// Connexion Redis persistante pour le marquage anti-rejeu (SET NX)\n// des requestId consommes en cache HIT, meme patron que le noeud\n// \"Lire cache device (Redis)\" qui a deja une connexion equivalente.\nconst client = new Redis({\n    host: 'host.docker.internal',\n    port: 6379,\n    username: env.get('REDIS_GATEWAY_USERNAME') || undefined,\n    password: env.get('REDIS_GATEWAY_PASSWORD') || undefined,\n    lazyConnect: false,\n    retryStrategy: (times) => Math.min(times * 100, 3000)\n});\nclient.on('error', (err) => node.warn('[HIT] Redis error: ' + err.message));\nclient.on('ready', ()    => node.log('[HIT] Redis connecte (anti-rejeu)'));\ncontext.set('antiReplayRedisClient', client);",
         "finalize": "const redis = context.get('antiReplayRedisClient');\nif (redis) {\n    redis.disconnect();\n    context.set('antiReplayRedisClient', null);\n}",
         "libs": [
             {

@@ -1,5 +1,6 @@
 package com.iotauth.iot_auth.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.iotauth.iot_auth.domain.entity.Device;
 import com.iotauth.iot_auth.domain.entity.VerifiableCredential;
 import com.iotauth.iot_auth.repository.VcRepository;
@@ -16,7 +17,8 @@ class VcServiceTest {
     void issueCredential_shouldReturnValidVerifiableCredential() {
         VcRepository vcRepository = mock(VcRepository.class);
         AdminKeyService adminKeyService = mock(AdminKeyService.class);
-        VcService service = new VcService(vcRepository, adminKeyService);
+        ObjectMapper objectMapper = new ObjectMapper();
+        VcService service = new VcService(vcRepository, adminKeyService, objectMapper);
         ReflectionTestUtils.setField(service, "vcValidityDays", 365);
 
         when(adminKeyService.getAdminDid()).thenReturn("did:algo:ADMIN");
