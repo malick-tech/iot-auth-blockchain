@@ -41,7 +41,7 @@ class JwtServiceTest {
         when(adminKeyService.sign(anyString()))
                 .thenAnswer(inv -> CryptoUtils.signEd25519(adminPrivateKey, inv.getArgument(0)));
 
-        service = new JwtService(adminKeyService, redisService);
+        service = new JwtService(adminKeyService, redisService, new com.fasterxml.jackson.databind.ObjectMapper());
         ReflectionTestUtils.setField(service, "jwtTtlSeconds", 3600L);
     }
 
