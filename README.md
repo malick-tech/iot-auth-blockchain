@@ -25,7 +25,7 @@ Ports utiles :
 - Frontend Vite : `http://localhost:5173`
 - PostgreSQL : `localhost:5432`
 - pgAdmin : `http://localhost:5050`
-- Redis : `localhost:6379`
+- Redis : `localhost:6379` (mot de passe `REDIS_PASSWORD`, accessible depuis la machine locale uniquement)
 - Redis Commander : `http://localhost:8081`
 - Node-RED : `http://localhost:1880`
 - Algorand LocalNet algod : `http://localhost:4001`

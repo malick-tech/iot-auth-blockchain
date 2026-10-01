@@ -87,12 +87,18 @@ def http_post(url: str, payload: dict, timeout: float, connection: "http.client.
 
 def clear_cache(config: dict, did: str) -> None:
     key = f"device:{did}"
+    password = os.environ.get("REDIS_PASSWORD")
+    if not password:
+        raise RuntimeError("REDIS_PASSWORD doit etre defini pour vider le cache Redis du benchmark")
     result = subprocess.run(
-        ["docker", "exec", config["redis_container"], "redis-cli", "DEL", key],
+        ["docker", "exec", "-e", f"REDISCLI_AUTH={password}", config["redis_container"], "redis-cli", "DEL", key],
         capture_output=True,
         text=True,
         check=False,
     )
+    # redis-cli renvoie 0 meme sur NOAUTH/WRONGPASS : DEL doit repondre un entier (0 ou 1).
+    if result.returncode == 0 and not result.stdout.strip().isdigit():
+        raise RuntimeError(f"Redis a refuse DEL {key}: {result.stdout.strip()}")
     if result.returncode != 0:
         raise RuntimeError(f"Impossible de vider Redis: {result.stderr.strip()}")
 

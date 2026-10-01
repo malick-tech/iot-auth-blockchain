@@ -21,3 +21,5 @@ services:
       - mosquitto
     environment:
       - GATEWAY_SHARED_SECRET=${IOT_AUTH_GATEWAY_SHARED_SECRET:?IOT_AUTH_GATEWAY_SHARED_SECRET doit etre defini (voir .env.example)}
+      - REDIS_GATEWAY_USERNAME=gateway
+      - REDIS_GATEWAY_PASSWORD=${REDIS_GATEWAY_PASSWORD:?REDIS_GATEWAY_PASSWORD doit etre defini (voir .env.example)}

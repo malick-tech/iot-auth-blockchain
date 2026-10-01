@@ -19,12 +19,25 @@ services:
 
   redis:
     image: redis:7-alpine
+    # default : mot de passe (backend, Redis Commander). gateway : compte a moindre privilege,
+    # lecture (HGETALL) sur device:*, ecriture (SET NX PX) limitee a op_proof_used:*.
+    command:
+      - sh
+      - -c
+      - >-
+        exec redis-server
+        --requirepass "$$REDIS_PASSWORD"
+        --user gateway on ">$$REDIS_GATEWAY_PASSWORD" "%R~device:*" "%W~op_proof_used:*"
+        -@all +hgetall +set +info +ping
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD doit etre defini (voir .env.example)}
+      REDIS_GATEWAY_PASSWORD: ${REDIS_GATEWAY_PASSWORD:?REDIS_GATEWAY_PASSWORD doit etre defini (voir .env.example)}
     ports:
-      - '6379:6379'
+      - '127.0.0.1:6379:6379'
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -43,9 +56,9 @@ services:
   redis-commander:
     image: rediscommander/redis-commander:latest
     environment:
-      - REDIS_HOSTS=local:redis:6379
+      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD:?REDIS_PASSWORD doit etre defini (voir .env.example)}
     ports:
-      - '8081:8081'
+      - '127.0.0.1:8081:8081'
     depends_on:
       - redis
 
