@@ -44,6 +44,17 @@ public class AnomalyDetectionService {
     @Value("${iot.auth.failure-threshold-vp:3}")
     private long vpThreshold;
 
+    /**
+     * Les échecs de challenge et de VP sont déclenchés par des requêtes que n'importe
+     * qui peut émettre en connaissant un DID (public). Les compter pour suspendre le
+     * dispositif permettrait à un tiers non authentifié de suspendre une victime à
+     * distance (déni de service ciblé). Par défaut, ces deux catégories ne produisent
+     * donc qu'une alerte. À ne passer à true que si l'endpoint de challenge est
+     * protégé en amont (réseau privé, mTLS...).
+     */
+    @Value("${iot.auth.anomaly.auto-suspend-unauthenticated:false}")
+    private boolean autoSuspendUnauthenticated;
+
     @Value("${iot.auth.failure-ttl-seconds-perm:3600}")
     private long permTtlSeconds;
 
@@ -54,7 +65,7 @@ public class AnomalyDetectionService {
         long count = redisService.incrementFailures(did, FailureCategory.CHALLENGE, challengeTtlSeconds);
         log.warn("Echec challenge-response pour did={} - compteur={}", did, count);
         if (count >= challengeThreshold) {
-            triggerSuspension(did, FailureCategory.CHALLENGE, count);
+            handleUnauthenticatedThreshold(did, FailureCategory.CHALLENGE, count);
         }
     }
 
@@ -62,7 +73,7 @@ public class AnomalyDetectionService {
         long count = redisService.incrementFailures(did, FailureCategory.VP, vpTtlSeconds);
         log.warn("Echec verification VP pour did={} - compteur={}", did, count);
         if (count >= vpThreshold) {
-            triggerSuspension(did, FailureCategory.VP, count);
+            handleUnauthenticatedThreshold(did, FailureCategory.VP, count);
         }
     }
 
@@ -80,6 +91,17 @@ public class AnomalyDetectionService {
 
     public void resetChallengeFailures(String did) {
         redisService.resetFailures(did, FailureCategory.CHALLENGE);
+    }
+
+    private void handleUnauthenticatedThreshold(String did, String category, long count) {
+        if (autoSuspendUnauthenticated) {
+            triggerSuspension(did, category, count);
+            return;
+        }
+        log.warn("ALERTE SECURITE : {} echec(s) '{}' pour did={} (seuil atteint). "
+                + "Suspension automatique desactivee pour cette categorie : "
+                + "les echecs ne sont pas authentifies. Verification manuelle recommandee.",
+                count, category, did);
     }
 
     private void triggerSuspension(String did, String reason, long count) {

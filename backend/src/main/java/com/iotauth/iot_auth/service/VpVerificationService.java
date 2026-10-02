@@ -82,6 +82,40 @@ public class VpVerificationService {
      * @return identifiant du VC extrait
      * @throws InvalidSignatureException si l'identifiant ne peut pas être extrait
      */
+    /**
+     * Vérifie que le VC contenu dans la VP est exactement le VC émis et signé par
+     * l'Issuer (celui conservé en base). Sans ce contrôle, seul l'identifiant du VC
+     * était lu dans la VP : le contenu présenté n'était jamais vérifié.
+     * <p>
+     * La comparaison est structurelle (arbre JSON), donc insensible à l'ordre des
+     * champs et aux espaces. Une VP qui ne contient qu'un identifiant, ou un VC
+     * modifié (permissions, sujet, dates, preuve), est refusée.
+     *
+     * @param verifiablePresentation VP JSON reçue du dispositif
+     * @param storedRawCredential    VC JSON signé, tel que stocké par l'Issuer
+     * @return true si le premier VC de la VP est identique au VC stocké
+     */
+    public boolean presentedCredentialMatches(String verifiablePresentation, String storedRawCredential) {
+        if (verifiablePresentation == null || storedRawCredential == null) {
+            return false;
+        }
+        try {
+            JsonNode vpNode = objectMapper.readTree(verifiablePresentation);
+            JsonNode vcArray = vpNode.get("verifiableCredential");
+            if (vcArray == null || !vcArray.isArray() || vcArray.size() != 1) {
+                return false;
+            }
+            JsonNode presented = vcArray.get(0);
+            if (!presented.isObject()) {
+                return false;
+            }
+            return presented.equals(objectMapper.readTree(storedRawCredential));
+        } catch (IOException e) {
+            log.warn("Comparaison VC présenté / VC stocké impossible: {}", e.getMessage());
+            return false;
+        }
+    }
+
     public String extractVcIdFromPresentation(String verifiablePresentation) {
         if (verifiablePresentation == null || verifiablePresentation.isBlank()) {
             throw new InvalidSignatureException("La VP est nulle ou vide");
