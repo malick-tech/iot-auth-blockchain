@@ -39,6 +39,8 @@ class AnomalyDetectionServiceTest {
         ReflectionTestUtils.setField(service, "vpThreshold", 3L);
         ReflectionTestUtils.setField(service, "permTtlSeconds", 3600L);
         ReflectionTestUtils.setField(service, "permThreshold", 1L);
+        // Par défaut : suspension désactivée pour les catégories non authentifiées
+        ReflectionTestUtils.setField(service, "autoSuspendUnauthenticated", false);
     }
 
     // ── recordChallengeFailure ───────────────────────────────────────────────
@@ -54,7 +56,18 @@ class AnomalyDetectionServiceTest {
     }
 
     @Test
-    void recordChallengeFailure_atThreshold_shouldTriggerSuspension() {
+    void recordChallengeFailure_atThreshold_byDefault_shouldNotSuspend() {
+        // Echec non authentifié : n'importe qui connaissant le DID peut le provoquer.
+        when(redisService.incrementFailures(DID, FailureCategory.CHALLENGE, 600L)).thenReturn(5L);
+
+        service.recordChallengeFailure(DID);
+
+        verify(suspensionPort, never()).suspendDevice(any(), any());
+    }
+
+    @Test
+    void recordChallengeFailure_atThreshold_whenAutoSuspendEnabled_shouldTriggerSuspension() {
+        ReflectionTestUtils.setField(service, "autoSuspendUnauthenticated", true);
         when(redisService.incrementFailures(DID, FailureCategory.CHALLENGE, 600L)).thenReturn(5L);
 
         service.recordChallengeFailure(DID);
@@ -63,7 +76,8 @@ class AnomalyDetectionServiceTest {
     }
 
     @Test
-    void recordChallengeFailure_aboveThreshold_shouldTriggerSuspension() {
+    void recordChallengeFailure_aboveThreshold_whenAutoSuspendEnabled_shouldTriggerSuspension() {
+        ReflectionTestUtils.setField(service, "autoSuspendUnauthenticated", true);
         when(redisService.incrementFailures(DID, FailureCategory.CHALLENGE, 600L)).thenReturn(7L);
 
         service.recordChallengeFailure(DID);
@@ -84,7 +98,17 @@ class AnomalyDetectionServiceTest {
     }
 
     @Test
-    void recordVpFailure_atThreshold_shouldTriggerSuspension() {
+    void recordVpFailure_atThreshold_byDefault_shouldNotSuspend() {
+        when(redisService.incrementFailures(DID, FailureCategory.VP, 300L)).thenReturn(3L);
+
+        service.recordVpFailure(DID);
+
+        verify(suspensionPort, never()).suspendDevice(any(), any());
+    }
+
+    @Test
+    void recordVpFailure_atThreshold_whenAutoSuspendEnabled_shouldTriggerSuspension() {
+        ReflectionTestUtils.setField(service, "autoSuspendUnauthenticated", true);
         when(redisService.incrementFailures(DID, FailureCategory.VP, 300L)).thenReturn(3L);
 
         service.recordVpFailure(DID);
@@ -127,6 +151,7 @@ class AnomalyDetectionServiceTest {
 
     @Test
     void recordChallengeFailure_whenAlreadySuspended_suspensionErrorShouldNotPropagate() {
+        ReflectionTestUtils.setField(service, "autoSuspendUnauthenticated", true);
         when(redisService.incrementFailures(DID, FailureCategory.CHALLENGE, 600L)).thenReturn(5L);
         org.mockito.Mockito.doThrow(new RuntimeException("Already suspended"))
                 .when(suspensionPort).suspendDevice(eq(DID), any());

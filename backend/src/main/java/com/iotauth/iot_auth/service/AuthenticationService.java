@@ -116,16 +116,16 @@ public class AuthenticationService {
             auditAuthenticationRejected(request.getDid(), "Nonce expired or not requested");
             throw new NonceExpiredException(request.getDid());
         }
-        // Le nonce est à usage unique : on le supprime dès qu'il est lu,
-        // qu'il corresponde ou non au challenge fourni.
-        redisService.deleteNonce(request.getDid());
-
+        // Le nonce est à usage unique, mais il n'est consommé qu'en cas de
+        // correspondance : un challenge erroné envoyé par un tiers non authentifié
+        // ne doit pas détruire le nonce du dispositif légitime.
         if (!storedNonce.equals(request.getChallenge())) {
             log.warn("Challenge invalide pour DID: {}", request.getDid());
             anomalyService.recordChallengeFailure(request.getDid());
             auditAuthenticationRejected(request.getDid(), "Challenge does not match issued nonce");
             throw new InvalidSignatureException("Challenge invalide ou expiré");
         }
+        redisService.deleteNonce(request.getDid());
 
         // 3. Vérifier la signature VP avec la clé publique du dispositif (signature sur challenge + VP)
         boolean vpValid = vpVerificationService.verifyPresentation(
@@ -190,6 +190,15 @@ public class AuthenticationService {
             log.warn("Signature issuer invalide sur VC: {} pour DID: {}", vcId, request.getDid());
             auditAuthenticationRejected(request.getDid(), "Invalid issuer signature on VC");
             throw new InvalidSignatureException("VC issuer signature verification failed");
+        }
+
+        // 4quinquies. Le VC présenté dans la VP doit être identique au VC signé par
+        // l'Issuer. Avant ce contrôle, seul l'id du VC était lu dans la VP.
+        if (!vpVerificationService.presentedCredentialMatches(
+                request.getVerifiablePresentation(), vc.getRawCredential())) {
+            log.warn("VC présenté différent du VC émis - vcId={} did={}", vcId, request.getDid());
+            auditAuthenticationRejected(request.getDid(), "Presented VC does not match issued VC");
+            throw new InvalidSignatureException("Presented Verifiable Credential does not match the issued one");
         }
 
         // 5. Vérifier l'expiration du credential
@@ -285,8 +294,18 @@ public class AuthenticationService {
             throw InvalidDeviceStatusException.expected(DeviceStatus.ACTIVE, device.getStatus());
         }
 
+        // /auth/challenge/{did} est public : on ne remplace jamais un nonce encore valide,
+        // sinon n'importe qui connaissant le DID pourrait invalider celui du dispositif.
         String nonce = CryptoUtils.generateNonce();
-        redisService.saveNonce(did, nonce, nonceTtl);
+        if (!redisService.saveNonceIfAbsent(did, nonce, nonceTtl)) {
+            String existing = redisService.getNonce(did);
+            if (existing != null) {
+                nonce = existing;
+            } else {
+                // Le nonce précédent a expiré entre les deux appels.
+                redisService.saveNonce(did, nonce, nonceTtl);
+            }
+        }
 
         log.info("Challenge de renouvellement émis pour DID: {}", did);
         auditLogService.record(

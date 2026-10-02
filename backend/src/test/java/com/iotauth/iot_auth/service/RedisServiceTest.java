@@ -52,6 +52,18 @@ class RedisServiceTest {
     }
 
     @Test
+    void saveNonceIfAbsent_whenNoNonce_shouldStoreAndReturnTrue() {
+        when(valueOps.setIfAbsent("nonce:did:algo:ABC", "n1", Duration.ofSeconds(60))).thenReturn(Boolean.TRUE);
+        assertThat(service.saveNonceIfAbsent("did:algo:ABC", "n1", 60)).isTrue();
+    }
+
+    @Test
+    void saveNonceIfAbsent_whenNonceAlreadyExists_shouldReturnFalse() {
+        when(valueOps.setIfAbsent("nonce:did:algo:ABC", "n2", Duration.ofSeconds(60))).thenReturn(Boolean.FALSE);
+        assertThat(service.saveNonceIfAbsent("did:algo:ABC", "n2", 60)).isFalse();
+    }
+
+    @Test
     void getNonce_shouldReturnStoredValue() {
         when(valueOps.get("nonce:did:algo:ABC")).thenReturn("my-nonce");
         assertThat(service.getNonce("did:algo:ABC")).isEqualTo("my-nonce");

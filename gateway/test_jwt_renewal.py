@@ -96,9 +96,27 @@ def get_vc_id(did: str) -> str:
     return vc_id
 
 
+def get_raw_credential(did: str) -> dict:
+    """Le backend exige maintenant que la VP embarque le VC complet signé, pas seulement son id."""
+    result = subprocess.run(
+        [
+            "docker", "exec", POSTGRES_CONTAINER,
+            "psql", "-U", POSTGRES_USER, "-d", POSTGRES_DB,
+            "-t", "-A",
+            "-c", f"SELECT raw_credential FROM verifiable_credentials WHERE subject_did = '{did}' ORDER BY issued_at DESC LIMIT 1;"
+        ],
+        capture_output=True, text=True,
+    )
+    raw = result.stdout.strip()
+    if not raw:
+        raise SystemExit(f"Impossible de récupérer le VC complet : {result.stderr}")
+    return json.loads(raw)
+
+
 def test_renewal(signing_key, did):
     vc_id = get_vc_id(did)
     print("\nvcId récupéré :", vc_id)
+    credential = get_raw_credential(did)
 
     challenge = check(
         requests.post(f"{BASE_URL}/api/v1/auth/challenge/{did}"),
@@ -109,7 +127,7 @@ def test_renewal(signing_key, did):
     vp = json.dumps({
         "@context": ["https://www.w3.org/2018/credentials/v1"],
         "type": "VerifiablePresentation",
-        "verifiableCredential": [{"id": vc_id}],
+        "verifiableCredential": [credential],
     })
 
     signature = sign_b64url(signing_key, nonce + vp)

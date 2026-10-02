@@ -35,6 +35,18 @@ public class RedisService {
         valueOps.set(nonceKey(did), nonce, Duration.ofSeconds(ttlSeconds));
     }
 
+    /**
+     * Pose le nonce uniquement si aucun nonce valide n'existe déjà pour ce DID.
+     * Empêche un tiers non authentifié d'écraser le nonce d'un dispositif légitime
+     * en appelant l'endpoint de challenge (qui est public).
+     *
+     * @return true si le nonce a été posé, false si un nonce existait déjà
+     */
+    public boolean saveNonceIfAbsent(String did, String nonce, long ttlSeconds) {
+        return Boolean.TRUE.equals(
+                valueOps.setIfAbsent(nonceKey(did), nonce, Duration.ofSeconds(ttlSeconds)));
+    }
+
     public String getNonce(String did) {
         return valueOps.get(nonceKey(did));
     }
