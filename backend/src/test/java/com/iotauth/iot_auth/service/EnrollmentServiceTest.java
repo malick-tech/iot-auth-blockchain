@@ -71,7 +71,7 @@ class EnrollmentServiceTest {
         Device device = new Device();
         device.setSerialNumber("SN-001");
         device.setStatus(DeviceStatus.ACTIVE);
-        when(deviceRepository.findBySerialNumber("SN-001")).thenReturn(Optional.of(device));
+        when(deviceRepository.findBySerialNumberForUpdate("SN-001")).thenReturn(Optional.of(device));
 
         FirstContactRequest request = new FirstContactRequest();
         request.setSerialNumber("SN-001");
@@ -96,7 +96,7 @@ class EnrollmentServiceTest {
         device.setDid(did);
         device.setPublicKey(publicKey);
         device.setStatus(DeviceStatus.PRE_REGISTERED);
-        when(deviceRepository.findBySerialNumber(serial)).thenReturn(Optional.of(device));
+        when(deviceRepository.findBySerialNumberForUpdate(serial)).thenReturn(Optional.of(device));
 
         FirstContactRequest request = new FirstContactRequest();
         request.setSerialNumber(serial);

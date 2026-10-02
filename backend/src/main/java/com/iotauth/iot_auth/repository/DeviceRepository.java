@@ -3,10 +3,12 @@ package com.iotauth.iot_auth.repository;
 import com.iotauth.iot_auth.domain.entity.Device;
 import com.iotauth.iot_auth.domain.enums.DeviceStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -15,6 +17,16 @@ import java.util.Optional;
 public interface DeviceRepository extends JpaRepository<Device, Long> {
 
     Optional<Device> findBySerialNumber(String serialNumber);
+
+    /**
+     * Même lecture, avec verrou d'écriture (SELECT ... FOR UPDATE) jusqu'à la fin de la
+     * transaction. Sert au premier contact : deux requêtes simultanées pour le même
+     * numéro de série sont sérialisées, la seconde voit l'état déjà modifié par la première.
+     * À n'appeler que dans une transaction en écriture (pas en readOnly).
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select d from Device d where d.serialNumber = :serialNumber")
+    Optional<Device> findBySerialNumberForUpdate(@Param("serialNumber") String serialNumber);
 
     Optional<Device> findByDid(String did);
 

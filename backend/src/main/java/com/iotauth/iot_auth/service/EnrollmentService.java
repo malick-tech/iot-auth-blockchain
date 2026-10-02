@@ -65,7 +65,7 @@ public class EnrollmentService {
                 "Premier contact recu pour le numero de serie " + request.getSerialNumber()
         );
 
-        Device device = deviceRepository.findBySerialNumber(request.getSerialNumber())
+        Device device = deviceRepository.findBySerialNumberForUpdate(request.getSerialNumber())
                 .orElseThrow(() -> {
                     auditFirstContactRejected(request, "Dispositif introuvable");
                     return DeviceNotFoundException.bySerial(request.getSerialNumber());
