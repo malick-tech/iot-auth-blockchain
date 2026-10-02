@@ -152,8 +152,12 @@ public class OperationalVerificationService {
         // Anti-rejeu strict : ce requestId précis ne doit jamais avoir été accepté
         // auparavant pour ce DID. Marquage atomique (SET NX) pour éviter toute
         // fenêtre de course entre deux requêtes concurrentes portant le même id.
+        // TTL du marqueur = 2 x la fenêtre de fraîcheur + marge : une preuve est
+        // acceptable de (t - fenêtre) à (t + fenêtre), soit 2 x fenêtre. Un TTL égal
+        // à la fenêtre laisserait rejouer la preuve si l'horloge du dispositif avance.
+        long replayMarkerTtlSeconds = 2 * popFreshnessSeconds + 5;
         boolean firstUse = redisService.markOperationalProofUsedIfAbsent(
-                request.getDid(), request.getRequestId(), popFreshnessSeconds);
+                request.getDid(), request.getRequestId(), replayMarkerTtlSeconds);
         if (!firstUse) {
             auditLogService.record(
                     EventType.REPLAY_ATTEMPT_DETECTED,

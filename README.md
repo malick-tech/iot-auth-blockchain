@@ -1,67 +1,79 @@
 # IoT Auth
 
-Projet de mémoire pour l'authentification sécurisée des dispositifs IoT avec DID Algorand, Verifiable Credentials, JWT PoP, gateway opérationnelle, PostgreSQL, Redis et interface d'administration React.
+Système d'authentification sécurisée pour dispositifs IoT basé sur DID Algorand, Verifiable Credentials et JWT Proof-of-Possession. Développé dans le cadre d'un mémoire de M2.
 
 ## Architecture
 
-- `backend/` : API Spring Boot, logique d'enrôlement, authentification, VC/JWT, révocation, audit, intégration PostgreSQL/Redis/Algorand.
-- `frontend/` : console d'administration React/Vite pour piloter les dispositifs, consulter l'état système et lire les journaux d'audit.
-- `devices/` : simulateurs de dispositifs IoT persistants qui s'enrolent puis communiquent en continu.
-- `gateway/` : gateway Node-RED unique et scripts de test pour les flux d'identité et opérationnels IoT.
-- `smart-contract/` : contrat Algorand utilisé pour publier et résoudre les DID sur LocalNet.
-- `backend/compose.yaml` : PostgreSQL, Redis, pgAdmin et Redis Commander.
-- `gateway/docker-compose.yml` : Mosquitto et Node-RED, gateway MQTT unique.
+| Composant | Rôle |
+|---|---|
+| `backend/` | API Spring Boot — enrôlement, authentification VC/JWT, révocation, audit, PostgreSQL/Redis/Algorand |
+| `frontend/` | Console d'administration React/Vite — gestion des dispositifs, journaux d'audit |
+| `devices/` | Simulateurs IoT Python — enrôlement MQTT, publication opérationnelle continue |
+| `gateway/` | Gateway Node-RED + Mosquitto — pont MQTT ↔ HTTP, cache local JWT PoP |
+| `smart-contract/` | Contrat PyTEAL Algorand — registre DID immuable on-chain |
+| `experiments/` | Benchmark de performance et suite de tests E2E sécurité |
 
-## Services Locaux
+## Prérequis
+
+- Java 25, Maven (ou `mvnw`)
+- Docker Desktop
+- AlgoKit + Algorand LocalNet (`algokit localnet start`)
+- Python ≥ 3.11 (`pip install -r devices/requirements.txt`)
+- Node.js ≥ 20 (pour le frontend)
+
+## Variables d'environnement
+
+Copier `.env.example` en `.env` (non versionné) et renseigner chaque valeur :
 
 ```powershell
-cd backend
-docker compose up -d
+# Secrets à générer une seule fois
+$env:DB_USERNAME="malick"
+$env:DB_PASSWORD="$(openssl rand -hex 16)"
+$env:PGADMIN_DEFAULT_EMAIL="admin@example.com"
+$env:PGADMIN_DEFAULT_PASSWORD="$(openssl rand -hex 16)"
+$env:REDIS_PASSWORD="$(openssl rand -hex 32)"
+$env:REDIS_GATEWAY_PASSWORD="$(openssl rand -hex 32)"
+$env:IOT_AUTH_ADMIN_PRIVATE_KEY_BASE64="$(openssl rand -base64 32)"
+$env:IOT_AUTH_ADMIN_JWT_SECRET="$(openssl rand -base64 64)"
+$env:IOT_AUTH_GATEWAY_SHARED_SECRET="$(openssl rand -hex 32)"
+$env:IOT_AUTH_ADMIN_BOOTSTRAP_PASSWORD="<12 caractères minimum>"
+$env:ALGORAND_APP_ID="1014"
+$env:ALGORAND_ALGOD_TOKEN="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+$env:ALGORAND_DEPLOYER_MNEMONIC="<mnemonic 25 mots du compte déployeur>"
 ```
 
-Ports utiles :
-
-- Backend Spring Boot : `http://localhost:8083`
-- Frontend Vite : `http://localhost:5173`
-- PostgreSQL : `localhost:5432`
-- pgAdmin : `http://localhost:5050`
-- Redis : `localhost:6379` (mot de passe `REDIS_PASSWORD`, accessible depuis la machine locale uniquement)
-- Redis Commander : `http://localhost:8081`
-- Node-RED : `http://localhost:1880`
-- Algorand LocalNet algod : `http://localhost:4001`
-- Algorand indexer : `http://localhost:8980`
-- Lora LocalNet : `https://lora.algokit.io/localnet`
+Aucun secret n'est fourni par défaut dans le dépôt. Voir `.env.example` pour la liste complète.
 
 ## Démarrage
 
-1. Démarrer les services Docker :
+**1. Infrastrucure Docker (PostgreSQL, Redis, pgAdmin, Redis Commander) :**
 
 ```powershell
 cd backend
 docker compose up -d
 ```
 
-2. Demarrer le broker MQTT et Node-RED :
+**2. Gateway MQTT + Node-RED :**
 
 ```powershell
-cd ../gateway
+cd gateway
 docker compose up -d
 ```
 
-3. Vérifier Algorand LocalNet :
+**3. Algorand LocalNet :**
 
 ```powershell
-algokit localnet status
+algokit localnet start
 ```
 
-4. Démarrer le backend :
+**4. Backend Spring Boot :**
 
 ```powershell
 cd backend
-.\mvnw.cmd spring-boot:run
+.\mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
-5. Démarrer le frontend :
+**5. Frontend :**
 
 ```powershell
 cd frontend
@@ -69,110 +81,24 @@ npm install
 npm run dev
 ```
 
-### Configuration locale
+## Ports utiles
 
-Le fichier `.env` reste local et ne doit jamais être commité. Pour un démarrage
-dev, il doit notamment contenir un secret JWT admin Base64 d'au moins 64 octets,
-le secret partagé de la gateway et l'App ID LocalNet :
+| Service | Adresse |
+|---|---|
+| Backend Spring Boot | `http://localhost:8083` |
+| Frontend Vite | `http://localhost:5173` |
+| pgAdmin | `http://localhost:5050` |
+| Redis Commander | `http://localhost:8081` (loopback uniquement) |
+| Redis | `localhost:6379` (loopback uniquement, mot de passe `REDIS_PASSWORD`) |
+| PostgreSQL | `localhost:5432` |
+| Node-RED | `http://localhost:1880` |
+| Algorand algod | `http://localhost:4001` |
+| Algorand indexer | `http://localhost:8980` |
+| Lora LocalNet | `https://lora.algokit.io/localnet` |
 
-```powershell
-$env:ALGORAND_APP_ID="1014"
-$env:IOT_AUTH_GATEWAY_SHARED_SECRET="$(openssl rand -hex 32)"
-$env:IOT_AUTH_ADMIN_PRIVATE_KEY_BASE64="$(openssl rand -base64 32)"
-$env:IOT_AUTH_ADMIN_BOOTSTRAP_PASSWORD="<mot de passe de 12 caractères minimum>"
-$env:IOT_AUTH_ADMIN_JWT_SECRET="$(openssl rand -base64 64)"
-```
+## Compte admin initial
 
-Aucun secret n'est fourni par défaut dans le dépôt. La clé privée Issuer et le secret de la gateway sont obligatoires ; en profil `dev`, un secret JWT admin absent est remplacé par une clé éphémère aléatoire (les sessions admin sont perdues au redémarrage). Voir `.env.example` pour la liste complète des variables.
-
-## Compte Admin
-
-Au premier démarrage, si aucun compte admin n'existe, le backend crée le compte `admin` **uniquement** si `IOT_AUTH_ADMIN_BOOTSTRAP_PASSWORD` est défini (12 caractères minimum). Aucun mot de passe par défaut n'existe.
-
-## Base de Données et Cache
-
-Le profil `dev` utilise PostgreSQL, pas H2 :
-
-- base : `iot_auth_db`
-- utilisateur : `malick`
-- mot de passe par défaut : `1234`
-
-Redis sert de cache opérationnel rapide pour les informations nécessaires à la gateway : statut du dispositif, clé publique, permissions et compteurs d'échecs.
-
-H2 reste réservé aux tests automatisés.
-
-## Supervision d'inactivite
-
-Le backend peut surveiller automatiquement les dispositifs actifs. En profil `dev`, cette surveillance est desactivee pour eviter qu'un device de test soit suspendu pendant que Node-RED traite ses messages en cache. Elle reste activable dans les autres profils.
-
-Parametres principaux :
-
-```properties
-iot.auth.inactivity-monitor.enabled=false
-iot.auth.inactivity-monitor.timeout-seconds=90
-iot.auth.inactivity-monitor.scan-interval-ms=30000
-```
-
-Avec `enabled=true`, chaque communication operationnelle autorisee met a jour `lastSeenAt`. Si le simulateur est arrete ou si la gateway ne recoit plus de messages, le device sera suspendu automatiquement apres le timeout.
-
-## Simulation de dispositifs
-
-Le dispositif n'est pas cree directement par le script. Le flux respecte la separation des roles :
-
-1. L'administrateur pre-enregistre le dispositif dans la console avec un numero de serie unique.
-2. Le simulateur est lance avec ce meme numero de serie, qui lui est propre.
-3. Le simulateur parle uniquement a la gateway via MQTT.
-4. Node-RED relaie le first-contact, le challenge-response et le renouvellement JWT vers le backend.
-5. Le simulateur obtient son VC/JWT PoP, puis publie en continu vers la gateway.
-
-Installation des dependances Python :
-
-```powershell
-pip install -r devices/requirements.txt
-```
-
-Exemple de lancement apres pre-enregistrement du serial `IOT-TEMP-001` :
-
-```powershell
-python devices/device_simulator.py --serial IOT-TEMP-001 --type capteur-temperature --location Ziguinchor-Lab
-```
-
-## Logs et Audit
-
-Les journaux d'audit sont stockés durablement dans PostgreSQL. Ils servent à répondre à la question : qui a fait quoi, quand, sur quel dispositif, avec quel résultat et avec quel contexte.
-
-Les logs incluent notamment :
-
-- connexions admin réussies ou échouées ;
-- création de comptes admin ;
-- pré-enregistrement des dispositifs ;
-- enrôlement, challenge-response, VC, JWT et VP ;
-- authentification réussie ou échouée ;
-- violations de permissions ;
-- anomalies et suspensions ;
-- réactivation et révocation ;
-- tentatives d'accès d'un dispositif révoqué ;
-- confirmations ou erreurs de publication Algorand.
-
-Pour les actions critiques, le champ `metadata` conserve le contexte structuré : motif, statut cible, action Redis, remise à zéro des compteurs, et `algorandTxId` quand une transaction Algorand existe.
-
-La révocation suit le modèle du document de conception :
-
-- Redis : effet immédiat par suppression du cache ;
-- Algorand : preuve permanente pour l'état irréversible ;
-- PostgreSQL : trace exploitable avec motif, horodatage, administrateur et transaction.
-
-La suspension est réversible : PostgreSQL reste la source de vérité et aucune transaction Algorand n'est publiée pour une simple suspension.
-
-## API Utiles
-
-Santé du backend :
-
-```powershell
-Invoke-RestMethod http://localhost:8083/actuator/health
-```
-
-Connexion admin :
+Au premier démarrage, le backend crée le compte `admin` **uniquement** si `IOT_AUTH_ADMIN_BOOTSTRAP_PASSWORD` est défini (12 caractères minimum). Aucun mot de passe par défaut n'existe dans le dépôt.
 
 ```powershell
 $login = Invoke-RestMethod -Method Post `
@@ -181,79 +107,99 @@ $login = Invoke-RestMethod -Method Post `
   -Body (@{ username = "admin"; password = $env:IOT_AUTH_ADMIN_BOOTSTRAP_PASSWORD } | ConvertTo-Json)
 ```
 
-Lecture des logs filtrés par admin :
+## Simulation de dispositifs
 
-```powershell
-$headers = @{ Authorization = "Bearer $($login.token)" }
-Invoke-RestMethod `
-  -Uri "http://localhost:8083/api/v1/admin/logs?page=0&size=10&adminUsername=admin" `
-  -Headers $headers
-```
+Le flux respecte la séparation des rôles — le simulateur ne crée jamais son enregistrement directement :
 
-## Algorand et DID
-
-Le projet vise un usage compatible avec l'approche DID Algorand :
-
-- DID au format `did:algo:...` ;
-- publication du DID Document sur Algorand LocalNet ;
-- résolution via application/box storage ;
-- révocation irréversible publiée on-chain ;
-- consultation des transactions via Lora LocalNet.
-
-Ne jamais mettre un vrai mnemonic Algorand dans le dépôt. Utiliser une variable d'environnement locale :
-
-```powershell
-$env:ALGORAND_DEPLOYER_MNEMONIC="..."
-$env:ALGORAND_APP_ID="1014"
-```
-
-Le contrat LocalNet utilise par cette version est l'application `1014`. Le compte qui a deploye cette application doit fournir `ALGORAND_DEPLOYER_MNEMONIC` pour publier les DID Documents et les mises a jour on-chain.
-
-## Test end-to-end
-
-Le parcours complet verifie : device → MQTT → Node-RED → backend → Algorand LocalNet → backend → Node-RED → device.
+1. L'admin pré-enregistre le dispositif dans la console avec un numéro de série unique.
+2. Le simulateur est lancé avec ce numéro de série.
+3. Le simulateur parle **uniquement** à la gateway via MQTT.
+4. Node-RED relaie le first-contact, le challenge-response et le renouvellement JWT vers le backend.
+5. Le dispositif obtient son VC/JWT PoP, puis publie des métriques en continu.
 
 ```powershell
 python devices/device_simulator.py --serial IOT-TEMP-001 --app-id 1014
 ```
 
-## Validation
+## Sécurité
 
-Benchmark du chapitre 5 :
+Le protocole d'authentification opérationnelle signe :
 
-```powershell
-.\experiments\run_benchmark.ps1
+```
+m = did ∥ jti ∥ timestamp ∥ requestId ∥ permission ∥ H(metricsJson)
 ```
 
-Les resultats sont ecrits dans `experiments/results/benchmark_raw.csv` et `experiments/results/benchmark_summary.csv`.
+- `requestId` (UUID par requête) : anti-rejeu, vérifié par SET NX Redis côté backend et gateway.
+- `H(metricsJson)` : intégrité des métriques — toute altération après signature est détectée.
+- Liaisons `VC.subject == DID` et `VC.issuer == adminDid` vérifiées avant la signature Ed25519.
 
-Le benchmark utilise 30 requêtes par scénario et 3 répétitions par défaut :
-`mqtt_hit`, `mqtt_miss` et `backend_direct`. Le rate limiting reste activé en
-fonctionnement normal. Pour mesurer la latence sans être interrompu par le quota
-de 20 requêtes opérationnelles par minute, lancer temporairement le backend avec
-`-Diot.auth.rate-limit.enabled=false`, puis le redémarrer avec la valeur par défaut.
+Redis dispose d'un compte `gateway` à moindre privilège (lecture `device:*`, écriture `op_proof_used:*` uniquement). Les ports Redis et Redis Commander sont liés à `127.0.0.1`.
 
-La suite backend validée comprend 89 tests avec 0 échec et 0 erreur. Le test de
-contexte vérifie notamment le démarrage Spring, PostgreSQL/H2 de test, Redis et
-l'initialisation de l'App ID `1014`.
+## API utiles
 
-Backend :
+**Santé :**
+
+```powershell
+Invoke-RestMethod http://localhost:8083/actuator/health
+```
+
+**Logs d'audit :**
+
+```powershell
+$headers = @{ Authorization = "Bearer $($login.token)" }
+Invoke-RestMethod `
+  -Uri "http://localhost:8083/api/v1/admin/logs?page=0&size=10" `
+  -Headers $headers
+```
+
+**Métriques IoT d'un dispositif :**
+
+```powershell
+Invoke-RestMethod `
+  -Uri "http://localhost:8083/api/v1/admin/devices/{did}/metrics?size=50" `
+  -Headers $headers
+```
+
+## Algorand et DID
+
+Le DID est au format `did:algo:custom:app:{appId}:{pubKeyHex}`. Le contrat LocalNet utilisé est l'application `1014`. Ne jamais committer de vrai mnemonic Algorand — fournir `ALGORAND_DEPLOYER_MNEMONIC` via variable d'environnement.
+
+## Base de données et cache
+
+- PostgreSQL : source de vérité principale (entités, VC, logs d'audit, métriques IoT).
+- Redis : cache opérationnel (statut dispositif, JTI blacklist, nonces, anti-rejeu). Protégé par mot de passe, compte `gateway` à moindre privilège.
+- La **révocation** écrit immédiatement dans Redis (blocage opérationnel < 1 s) et ancre on-chain (Algorand) en meilleur effort (recovery automatique si échec).
+- La **suspension** n'écrit que dans PostgreSQL (réversible, pas de transaction Algorand).
+
+## Tests et validation
+
+Tests unitaires (94 tests, 0 échec) :
 
 ```powershell
 cd backend
-.\mvnw.cmd clean test
+.\mvnw.cmd test
 ```
+
+Benchmark de performance (scénarios `mqtt_hit`, `mqtt_miss`, `backend_direct`) :
+
+```powershell
+# Désactiver temporairement le rate-limit dans application.properties
+# iot.auth.rate-limit.enabled=false
+python experiments/benchmark.py --config experiments/benchmark_config.json
+```
+
+Suite E2E sécurité (cycle de vie complet + matrice de 9 attaques) :
+
+```powershell
+# Renseigner experiments/e2e_security_config.json avec les identifiants admin
+python experiments/e2e_security_suite.py --phase all
+```
+
+Les résultats sont écrits dans `experiments/results/` (ignoré par git).
 
 Frontend :
 
 ```powershell
 cd frontend
-npm run lint
-npm run build
+npm run lint && npm run build
 ```
-
-Validation recente :
-
-- tests crypto cibles : 21 tests OK ;
-- test end-to-end avec Node-RED et Algorand LocalNet `1014` : OK ;
-- health backend : PostgreSQL `UP`, Redis `UP`.
