@@ -36,4 +36,4 @@ npm run lint
 npm run build
 ```
 
-Le frontend communique avec le backend Spring Boot sur `http://localhost:8083`. L'App ID Algorand affichee dans les liens DID/Lora est `1014` par defaut et peut etre surchargee par `VITE_ALGORAND_APP_ID`.
+Le frontend communique avec le backend Spring Boot sur `http://localhost:8083`. L'App ID Algorand affichee dans les liens DID/Lora est `1032` par defaut et peut etre surchargee par `VITE_ALGORAND_APP_ID`.

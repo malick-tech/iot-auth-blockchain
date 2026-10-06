@@ -40,7 +40,7 @@ Apres reset/update de LocalNet, l'ancien App ID `1019` n'etait plus valide.
 Le contrat actif utilise par le projet est la version compatible ARC-4 alignee avec la specification `did:algo` app namespace :
 
 ```text
-App ID      : 1014
+App ID      : 1032
 App Address : VSFZF5BRBVJY7P5QQN73JQ27DX3RP6PWSHW4I3SFFFZYFNTGCM3ZC2DHLE
 Deploy Tx   : FU7SDR5Z4W2GP5TGOEAYXEZ56PSSR2ZGHJE2JIVAPEQB2HAMUUYQ
 ```
@@ -48,7 +48,7 @@ Deploy Tx   : FU7SDR5Z4W2GP5TGOEAYXEZ56PSSR2ZGHJE2JIVAPEQB2HAMUUYQ
 Dans Lora, il faut donc rechercher :
 
 ```text
-1014
+1032
 ```
 
 ## Alignement did:algo
@@ -64,7 +64,7 @@ En LocalNet, le reseau est represente par `custom`.
 Exemple :
 
 ```text
-did:algo:custom:app:1014:983428fc4903fde334d77ae9bf4bc4a7d11bd478ff6d572979899529f3dcb678
+did:algo:custom:app:1032:983428fc4903fde334d77ae9bf4bc4a7d11bd478ff6d572979899529f3dcb678
 ```
 
 La structure on-chain utilise maintenant :
@@ -97,7 +97,7 @@ backend/src/main/resources/application-dev.properties
 La configuration dev pointe maintenant vers le smart contract actif :
 
 ```properties
-iot.auth.algorand.app-id=${ALGORAND_APP_ID:1014}
+iot.auth.algorand.app-id=${ALGORAND_APP_ID:1032}
 ```
 
 Un fichier d'interface ARC-4 a ete ajoute pour Lora App Lab :
@@ -139,8 +139,8 @@ BUILD SUCCESS
 Verification de l'application dans indexer :
 
 ```text
-GET http://localhost:8980/v2/applications/1014
-Resultat : application id = 1014
+GET http://localhost:8980/v2/applications/1032
+Resultat : application id = 1032
 ```
 
 Verification backend :
@@ -246,7 +246,7 @@ algokit localnet reset --update
 
 alors l'etat blockchain local est efface. Dans ce cas :
 
-1. l'App ID `1014` peut disparaitre ;
+1. l'App ID `1032` peut disparaitre ;
 2. il faut redeployer le smart contract ;
 3. il faut remplacer l'App ID dans `application-dev.properties` ;
 4. il faut redemarrer le backend.
@@ -256,7 +256,7 @@ alors l'etat blockchain local est efface. Dans ce cas :
 Le projet est maintenant aligne avec l'environnement LocalNet actif :
 
 - Lora fonctionne ;
-- le smart contract actif est `1014` ;
-- le backend dev pointe vers `1014` ;
+- le smart contract actif est `1032` ;
+- le backend dev pointe vers `1032` ;
 - les tests backend passent ;
 - l'erreur de mnemonic Algorand vide ne bloque plus le demarrage local.

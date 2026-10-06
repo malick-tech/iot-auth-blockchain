@@ -28,11 +28,11 @@ Exemple apres pre-enregistrement admin du serial `IOT-TEMP-001` :
 python devices/device_simulator.py --serial IOT-TEMP-001 
 ```
 
-L'App ID LocalNet utilisé par défaut est `1014`. Il doit rester identique dans
+L'App ID LocalNet utilisé par défaut est `1032`. Il doit rester identique dans
 le backend, le simulateur et le contrat déployé :
 
 ```powershell
-python devices/device_simulator.py --serial IOT-TEMP-001 --app-id 1014
+python devices/device_simulator.py --serial IOT-TEMP-001 --app-id 1032
 ```
 
 ## Lancer un nouveau device avec un nouveau serial number
@@ -109,7 +109,7 @@ python devices/device_simulator.py --serial IOT-TEMP-001 --interval 10 --permiss
 - `--interval` : delai entre deux messages operationnels.
 - `--permission` : permission demandee a la gateway.
 - `--mqtt-host` / `--mqtt-port` : broker MQTT, par defaut `localhost:1883`.
-- `--app-id` : namespace DID Algorand, `1014` par defaut.
+- `--app-id` : namespace DID Algorand, `1032` par defaut.
 
 Après une réactivation depuis la console, le backend nettoie l'état d'authentification
 Redis et les compteurs d'échec avant le prochain challenge. Si un ancien JWT reste
