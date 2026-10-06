@@ -173,31 +173,76 @@ Le DID est au format `did:algo:custom:app:{appId}:{pubKeyHex}`. Le contrat Local
 
 ## Tests et validation
 
-Tests unitaires (94 tests, 0 échec) :
+### Test d'intégration système complet
+
+Le runner PowerShell automatise la chaîne de validation complète :
+
+1. démarrage/validation PostgreSQL, Redis, Mosquitto, Node-RED et Algorand LocalNet ;
+2. exécution des tests Maven du backend ;
+3. vérification on-chain de l'irréversibilité du smart contract ;
+4. démarrage et contrôle de santé du backend Spring Boot ;
+5. cycle E2E complet `pré-enregistrement -> enrôlement -> opération -> suspension/réactivation -> révocation -> blocage` ;
+6. matrice E2E des attaques ;
+7. lint et build du frontend ;
+8. génération d'un rapport `integration_summary.json`.
+
+Avant le lancement, définir au minimum :
+
+```powershell
+$env:IOT_AUTH_ADMIN_BOOTSTRAP_PASSWORD="<mot-de-passe-admin>"
+$env:ALGORAND_DEPLOYER_MNEMONIC="<mnemonic-localnet>"
+```
+
+Puis :
+
+```powershell
+.\experiments\run_integration.ps1
+```
+
+Le backend lancé par le runner est arrêté automatiquement à la fin. Pour le
+laisser actif :
+
+```powershell
+.\experiments\run_integration.ps1 -KeepBackend
+```
+
+Pour utiliser des services déjà démarrés :
+
+```powershell
+.\experiments\run_integration.ps1 -NoStartInfrastructure -NoStartBackend
+```
+
+Options utiles :
+
+```powershell
+.\experiments\run_integration.ps1 -SkipFrontend
+.\experiments\run_integration.ps1 -SkipContract
+.\experiments\run_integration.ps1 -SkipUnitTests
+.\experiments\run_integration.ps1 -SkipE2E
+```
+
+Les journaux et le rapport global sont écrits dans
+`experiments/results/integration/`. La suite E2E produit également
+`experiments/results/e2e_security_results.csv` et
+`experiments/results/e2e_security_results.json`.
+
+### Tests unitaires
 
 ```powershell
 cd backend
 .\mvnw.cmd test
 ```
 
-Benchmark de performance (scénarios `mqtt_hit`, `mqtt_miss`, `backend_direct`) :
+### Benchmark de performance
+
+Le benchmark doit être exécuté séparément, avec le rate limiting désactivé
+temporairement conformément au protocole v2 :
 
 ```powershell
-# Désactiver temporairement le rate-limit dans application.properties
-# iot.auth.rate-limit.enabled=false
 python experiments/benchmark.py --config experiments/benchmark_config.json
 ```
 
-Suite E2E sécurité (cycle de vie complet + matrice de 9 attaques) :
-
-```powershell
-# Renseigner experiments/e2e_security_config.json avec les identifiants admin
-python experiments/e2e_security_suite.py --phase all
-```
-
-Les résultats sont écrits dans `experiments/results/` (ignoré par git).
-
-Frontend :
+### Frontend
 
 ```powershell
 cd frontend
