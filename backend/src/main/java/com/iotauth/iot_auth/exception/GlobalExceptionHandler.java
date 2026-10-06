@@ -61,6 +61,11 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.UNAUTHORIZED, "NONCE_EXPIRED", ex.getMessage());
     }
 
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleRateLimitExceeded(RateLimitExceededException ex) {
+        return buildErrorResponse(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMIT_EXCEEDED", ex.getMessage());
+    }
+
     @ExceptionHandler(AdminAlreadyExistsException.class)
     public ResponseEntity<Map<String, Object>> handleAdminAlreadyExists(AdminAlreadyExistsException ex) {
         log.warn("Admin already exists: {}", ex.getMessage());

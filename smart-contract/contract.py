@@ -86,10 +86,14 @@ def approval_program():
         # Seuls 1 (ready) et 2 (deleted) sont acceptes, et 2 est terminal :
         # aucun retour arriere possible, meme avec la cle admin.
         Assert(Or(status_value == DID_STATUS_READY, status_value == DID_STATUS_DELETED)),
-        Assert(
+        # Depuis 2, seul 2 est accepte : la re-soumission de la meme revocation reste
+        # IDEMPOTENTE. Sans cela, si la transaction est confirmee mais que le backend
+        # perd la reponse (timeout), AlgorandPublishingRecoveryService.recoverRevocationAnchors()
+        # la resoumet et le contrat la refuserait indefiniment (ancrage jamais enregistre).
+        If(
             App.box_extract(subject_key, METADATA_STATUS_OFFSET, Int(1))
-            != DID_STATUS_DELETED
-        ),
+            == DID_STATUS_DELETED
+        ).Then(Assert(status_value == DID_STATUS_DELETED)),
         App.box_replace(subject_key, METADATA_STATUS_OFFSET, status_value),
         Approve(),
     ])

@@ -60,6 +60,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     private String categoryFor(String path) {
+        // Appel interne de la gateway, authentifié par secret partagé (GatewayAuthFilter) :
+        // un quota par IP le pénaliserait à chaque décision HIT, donc proportionnellement
+        // au trafic légitime (cf. I-1/I-2).
+        if (path.equals("/api/v1/operational/log-cache-hit")) return null;
         if (path.equals("/api/v1/admin/auth/login")) return "admin-login";
         if (path.startsWith("/api/v1/enrollment/")) return "enrollment";
         if (path.startsWith("/api/v1/auth/")) return "auth";

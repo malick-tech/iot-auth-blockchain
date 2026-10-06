@@ -19,9 +19,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class EnrollmentController {
 
     private final EnrollmentService enrollmentService;
+    private final com.iotauth.iot_auth.service.RateLimitService rateLimitService;
 
     @PostMapping(path = "/first-contact", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ChallengeResponse firstContact(@Valid @RequestBody FirstContactRequest request) {
+        rateLimitService.requireAllowed("enrollment", request.getDid());
         return enrollmentService.handleFirstContact(request);
     }
 
