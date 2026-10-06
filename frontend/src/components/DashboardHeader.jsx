@@ -1,7 +1,7 @@
 import { Blocks, Database, Server, Wifi } from "lucide-react";
 import { formatDate } from "../utils/format";
 
-const APP_ID = import.meta.env.VITE_ALGORAND_APP_ID ?? "1014";
+const APP_ID = import.meta.env.VITE_ALGORAND_APP_ID ?? "1032";
 
 function HealthPill({ icon: Icon, label, status }) {
   const up = status === "UP";

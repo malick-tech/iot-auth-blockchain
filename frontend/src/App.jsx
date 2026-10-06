@@ -11,7 +11,7 @@ import ConfirmActionModal from "./components/ConfirmActionModal.jsx";
 import LogsPage from "./LogsPage.jsx";
 import LoginPage from "./LoginPage.jsx";
 
-const APP_ID = import.meta.env.VITE_ALGORAND_APP_ID ?? "1014";
+const APP_ID = import.meta.env.VITE_ALGORAND_APP_ID ?? "1032";
 const AUTO_REFRESH_MS = 30_000; // tâche 10 : rafraîchissement automatique
 
 const STATUS_CARDS = [
