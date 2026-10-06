@@ -5,6 +5,8 @@ import com.iotauth.iot_auth.dto.response.ApiResponse;
 import com.iotauth.iot_auth.dto.response.ChallengeResponse;
 import com.iotauth.iot_auth.dto.response.JwtPopResponse;
 import com.iotauth.iot_auth.service.AuthenticationService;
+import com.iotauth.iot_auth.util.ClientIpResolver;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,8 +58,8 @@ public class AuthController {
      */
     @PostMapping(path = "/challenge/{did}")
     @ResponseStatus(HttpStatus.OK)
-    public ResponseEntity<ChallengeResponse> requestChallenge(@PathVariable String did) {
-        rateLimitService.requireAllowed("challenge", did);
+    public ResponseEntity<ChallengeResponse> requestChallenge(@PathVariable String did, HttpServletRequest httpRequest) {
+        rateLimitService.requireAllowed("challenge", did, ClientIpResolver.resolve(httpRequest));
         log.info("Challenge de renouvellement demandé pour DID: {}", did);
         ChallengeResponse response = authenticationService.issueRenewalChallenge(did);
         return ResponseEntity.ok(response);
@@ -66,9 +68,10 @@ public class AuthController {
     @PostMapping(path = "/authenticate", consumes = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.OK)
     public ResponseEntity<JwtPopResponse> authenticate(
-            @Valid @RequestBody VPRequest request
+            @Valid @RequestBody VPRequest request,
+            HttpServletRequest httpRequest
     ) {
-        rateLimitService.requireAllowed("auth", request.getDid());
+        rateLimitService.requireAllowed("auth", request.getDid(), ClientIpResolver.resolve(httpRequest));
         log.info("Authentication request received for DID: {}", request.getDid());
         try {
             JwtPopResponse response = authenticationService.authenticateDevice(request);
