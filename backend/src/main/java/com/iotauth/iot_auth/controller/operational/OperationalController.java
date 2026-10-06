@@ -4,6 +4,8 @@ import com.iotauth.iot_auth.dto.request.CacheHitLogRequest;
 import com.iotauth.iot_auth.dto.request.OperationalVerifyRequest;
 import com.iotauth.iot_auth.dto.response.OperationalVerifyResponse;
 import com.iotauth.iot_auth.service.OperationalVerificationService;
+import com.iotauth.iot_auth.util.ClientIpResolver;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -23,9 +25,10 @@ public class OperationalController {
     private final com.iotauth.iot_auth.service.RateLimitService rateLimitService;
 
     @PostMapping(path = "/verify", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public OperationalVerifyResponse verify(@Valid @RequestBody OperationalVerifyRequest request) {
+    public OperationalVerifyResponse verify(@Valid @RequestBody OperationalVerifyRequest request,
+                                             HttpServletRequest httpRequest) {
         // Chemin cache MISS : quota par DID (le MISS est censé rester rare, ~1 / TTL Redis).
-        rateLimitService.requireAllowed("operational", request.getDid());
+        rateLimitService.requireAllowed("operational", request.getDid(), ClientIpResolver.resolve(httpRequest));
         return operationalVerificationService.verify(request);
     }
 

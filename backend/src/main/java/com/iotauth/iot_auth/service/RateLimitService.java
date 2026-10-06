@@ -24,9 +24,10 @@ public class RateLimitService {
     private long maxRequests;
 
     /**
-     * Quota PAR IP pour les endpoints IoT : simple garde-fou global. Derrière la
-     * gateway, toutes les requêtes des dispositifs partagent l'adresse de la gateway :
-     * ce plafond représente donc la capacité totale acceptée, pas une limite par appareil.
+     * Plafond PAR IP pour un appelant interne de confiance (la gateway). Derrière elle, toute
+     * la flotte partage la même adresse : ce plafond représente la capacité totale acceptée,
+     * pas une limite par appareil. Les autres appelants (accès direct au backend) restent
+     * soumis au quota strict {@code max-requests}.
      */
     @Value("${iot.auth.rate-limit.ip-max-requests:600}")
     private long ipMaxRequests;
@@ -43,28 +44,41 @@ public class RateLimitService {
     /**
      * Fenêtre fixe : incrémente un compteur Redis par identifiant (IP) et
      * catégorie d'endpoint, expiration = taille de la fenêtre. Retourne
-     * false si le quota de la fenêtre courante est dépassé.
+     * false si le quota de la fenêtre courante est dépassé. Le plafond large
+     * ({@code ip-max-requests}) ne s'applique qu'aux appels venant d'un proxy
+     * interne de confiance ; un client direct reste limité à {@code max-requests}.
      *
      * La catégorie "admin-login" a son propre seuil, volontairement plus
      * strict (5/min par défaut) : c'est une protection anti brute-force
      * sur le mot de passe admin, pas juste une limite de débit générique.
      */
-    public boolean isAllowed(String category, String identifier) {
-        long limit = "admin-login".equals(category) ? adminLoginMaxRequests : ipMaxRequests;
+    public boolean isAllowed(String category, String identifier, boolean fromTrustedProxy) {
+        long limit;
+        if ("admin-login".equals(category)) {
+            limit = adminLoginMaxRequests;
+        } else {
+            limit = fromTrustedProxy ? ipMaxRequests : maxRequests;
+        }
         long window = "admin-login".equals(category) ? adminLoginWindowSeconds : windowSeconds;
         return isAllowed(category, identifier, limit, window);
     }
 
     /**
-     * Correctif I-2 : limitation PAR DID. Lève RateLimitExceededException (HTTP 429)
-     * si ce DID dépasse son quota sur la fenêtre. Protège un dispositif donné d'un
-     * martèlement sans pénaliser les autres dispositifs derrière la même gateway.
+     * Limitation par couple (DID, IP source). Lève RateLimitExceededException (HTTP 429)
+     * si ce couple dépasse son quota sur la fenêtre.
+     *
+     * Le DID est déclaré par l'appelant avant toute authentification : un quota par DID seul
+     * permettrait à n'importe qui d'épuiser celui d'un capteur et de l'empêcher de renouveler
+     * son JWT. Y ajouter l'IP source isole l'appelant direct. Limite résiduelle : un attaquant
+     * qui passe par la gateway (MQTT sans authentification, hypothèse H3) partage l'IP de la
+     * gateway et peut toujours consommer le quota d'un DID.
      */
-    public void requireAllowed(String category, String did) {
+    public void requireAllowed(String category, String did, String clientIp) {
         if (did == null || did.isBlank()) {
             return;
         }
-        if (!isAllowed("did-" + category, did, maxRequests, windowSeconds)) {
+        String identifier = did + "|" + (clientIp == null ? "unknown" : clientIp);
+        if (!isAllowed("did-" + category, identifier, maxRequests, windowSeconds)) {
             throw new RateLimitExceededException(
                     "Limite de requêtes dépassée pour ce dispositif, réessayez plus tard.");
         }
