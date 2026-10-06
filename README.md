@@ -206,24 +206,26 @@ npm run lint && npm run build
 
 ---
 
-## Correctifs de sécurité complémentaires (branche `fix/finalisation-securite`)
+## Correctifs de sécurité complémentaires
 
-Cette branche s'appuie sur `main` (qui corrige déjà la suspension à distance, le nonce `SET NX`, la comparaison
-du VC présenté, le DID Document minimal, le contrat verrouillé et le TTL anti-rejeu). Elle ajoute ce qui restait ouvert.
+Ces correctifs s'ajoutent à ceux déjà intégrés (suspension à distance, nonce `SET NX`, comparaison du VC présenté,
+DID Document minimal, contrat verrouillé, TTL anti-rejeu).
 
 | Problème | Correctif | Où |
 |---|---|---|
 | **Redis racine de confiance** : la gateway lisait la clé de l'Issuer dans l'entrée de cache | **Clé Issuer épinglée** : si `IOT_AUTH_ISSUER_PUBLIC_KEY` est définie, la gateway l'utilise et ignore la clé du cache. Le backend affiche la valeur au démarrage (« Cle publique Issuer ») | `flows.json`, `gateway/docker-compose.yml`, `.env.example`, `AdminKeyService` |
-| **Rate limiting** désactivé par défaut et par IP (toute la flotte = IP de la gateway) | Actif par défaut (`IOT_AUTH_RATE_LIMIT_ENABLED=false` pour un benchmark) ; quota **par DID** sur `/auth/challenge`, `/auth/authenticate`, `/enrollment/first-contact`, `/operational/verify` ; `log-cache-hit` exempté du quota IP | `RateLimitService`, contrôleurs |
+| **Rate limiting** désactivé par défaut et par IP (toute la flotte = IP de la gateway) | Actif par défaut (`IOT_AUTH_RATE_LIMIT_ENABLED=false` pour un benchmark) ; quota **par couple (DID, IP source)** sur `/auth/challenge`, `/auth/authenticate`, `/enrollment/first-contact`, `/operational/verify` (un quota par DID seul laisserait n'importe qui épuiser celui d'un capteur) ; plafond IP large (`ip-max-requests`, 600/min) réservé aux appels d'un proxy interne de confiance (gateway), un client direct reste à `max-requests` (20/min) ; `log-cache-hit` exempté du quota IP | `RateLimitService`, `RateLimitFilter`, `ClientIpResolver`, contrôleurs |
 | **Révocation non idempotente** : si la transaction est confirmée mais que le backend perd la réponse, la reprise resoumet le statut 02 et le contrat le refusait indéfiniment | Depuis 02, le contrat accepte **uniquement 02** (re-soumission idempotente), toujours pas de retour 02 → 01 | `contract.py`, `approval.teal` (**redéploiement nécessaire**, nouvel App ID) |
 | **Latence HIT faussée** (~40 ms de plancher : Nagle + ACK retardé) | `set_tcp_nodelay true` sur Mosquitto | `gateway/mosquitto/mosquitto.conf` |
 | **Benchmark v1 invalide** | Protocole v2 (voir `experiments/README.md`) | `experiments/` |
 
-Non encore corrigé : MQTT sans TLS ni authentification (hypothèse H3 du mémoire non satisfaite), nonce de
+Non encore corrigé : **squat d'enrôlement** (connaître le numéro de série, imprimé sur le boîtier, suffit à enrôler
+sa propre clé sur un dispositif `PENDING`), MQTT sans TLS ni authentification (hypothèse H3 du mémoire non
+satisfaite : un attaquant passant par la gateway partage son IP et peut donc encore consommer le quota d'un DID), nonce de
 renouvellement pouvant être « brûlé » par un tiers, seuil d'inactivité de 90 s inadapté aux capteurs à faible
 duty cycle, éditeur Node-RED sans `adminAuth`, et alerte sur échecs non authentifiés limitée aux journaux
 applicatifs (`log.warn`) : ni persistée dans le journal d'audit, ni notifiée à l'administrateur.
 
 > **Non exécuté lors de la rédaction** : `mvn test` (dépendances Maven indisponibles dans l'environnement de
-> rédaction) et `smart-contract/test_contract_irreversibility.py` (nécessite LocalNet). À lancer avant de citer
+> rédaction, y compris `RateLimitServiceTest` et `ClientIpResolverTest`) et `smart-contract/test_contract_irreversibility.py` (nécessite LocalNet). À lancer avant de citer
 > des résultats dans le mémoire.

@@ -5,6 +5,8 @@ import com.iotauth.iot_auth.dto.request.FirstContactRequest;
 import com.iotauth.iot_auth.dto.response.ChallengeResponse;
 import com.iotauth.iot_auth.dto.response.JwtPopResponse;
 import com.iotauth.iot_auth.service.EnrollmentService;
+import com.iotauth.iot_auth.util.ClientIpResolver;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -22,8 +24,9 @@ public class EnrollmentController {
     private final com.iotauth.iot_auth.service.RateLimitService rateLimitService;
 
     @PostMapping(path = "/first-contact", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ChallengeResponse firstContact(@Valid @RequestBody FirstContactRequest request) {
-        rateLimitService.requireAllowed("enrollment", request.getDid());
+    public ChallengeResponse firstContact(@Valid @RequestBody FirstContactRequest request,
+                                          HttpServletRequest httpRequest) {
+        rateLimitService.requireAllowed("enrollment", request.getDid(), ClientIpResolver.resolve(httpRequest));
         return enrollmentService.handleFirstContact(request);
     }
 
