@@ -19,7 +19,7 @@ from cryptography.hazmat.primitives import hashes
 
 DEFAULT_MQTT_HOST = "localhost"
 DEFAULT_MQTT_PORT = 1883
-DEFAULT_APP_ID = 1014
+DEFAULT_APP_ID = 1032
 DEFAULT_MAX_ENROLL_ATTEMPTS = 20
 STATE_DIR = Path(__file__).resolve().parent / "state"
 MASTER_KEY_PATH = STATE_DIR / ".master.key"

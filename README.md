@@ -37,7 +37,7 @@ $env:IOT_AUTH_ADMIN_PRIVATE_KEY_BASE64="$(openssl rand -base64 32)"
 $env:IOT_AUTH_ADMIN_JWT_SECRET="$(openssl rand -base64 64)"
 $env:IOT_AUTH_GATEWAY_SHARED_SECRET="$(openssl rand -hex 32)"
 $env:IOT_AUTH_ADMIN_BOOTSTRAP_PASSWORD="<12 caractères minimum>"
-$env:ALGORAND_APP_ID="1014"
+$env:ALGORAND_APP_ID="1032"
 $env:ALGORAND_ALGOD_TOKEN="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 $env:ALGORAND_DEPLOYER_MNEMONIC="<mnemonic 25 mots du compte déployeur>"
 ```
@@ -118,7 +118,7 @@ Le flux respecte la séparation des rôles — le simulateur ne crée jamais son
 5. Le dispositif obtient son VC/JWT PoP, puis publie des métriques en continu.
 
 ```powershell
-python devices/device_simulator.py --serial IOT-TEMP-001 --app-id 1014
+python devices/device_simulator.py --serial IOT-TEMP-001 --app-id 1032
 ```
 
 ## Sécurité
@@ -162,7 +162,7 @@ Invoke-RestMethod `
 
 ## Algorand et DID
 
-Le DID est au format `did:algo:custom:app:{appId}:{pubKeyHex}`. Le contrat LocalNet utilisé est l'application `1014`. Ne jamais committer de vrai mnemonic Algorand — fournir `ALGORAND_DEPLOYER_MNEMONIC` via variable d'environnement.
+Le DID est au format `did:algo:custom:app:{appId}:{pubKeyHex}`. Le contrat LocalNet utilisé est l'application `1032`. Ne jamais committer de vrai mnemonic Algorand — fournir `ALGORAND_DEPLOYER_MNEMONIC` via variable d'environnement.
 
 ## Base de données et cache
 

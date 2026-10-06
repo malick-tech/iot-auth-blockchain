@@ -9,7 +9,7 @@ import requests
 
 BASE = "http://localhost:8083"
 
-state = load_or_create_identity("IOT-TEMP-001", 1014)
+state = load_or_create_identity("IOT-TEMP-001", 1032)
 sk    = signing_key_from_state(state)
 serial = state["serialNumber"]
 did    = state["did"]

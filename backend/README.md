@@ -46,7 +46,7 @@ Le backend écoute sur `http://localhost:8083` avec :
 | Redis | `localhost:6379` (mot de passe `REDIS_PASSWORD`) |
 | Algorand algod | `http://localhost:4001` |
 | Algorand indexer | `http://localhost:8980` |
-| App ID LocalNet | `1014` |
+| App ID LocalNet | `1032` |
 
 H2 est réservé aux tests automatisés.
 
@@ -63,7 +63,7 @@ Aucun secret n'est fourni par défaut. Voir `.env.example` à la racine.
 | `IOT_AUTH_GATEWAY_SHARED_SECRET` | Secret partagé gateway ↔ backend (`X-Gateway-Secret`) |
 | `IOT_AUTH_ADMIN_BOOTSTRAP_PASSWORD` | Mot de passe du compte admin initial (12 car. min) |
 | `IOT_AUTH_ADMIN_JWT_SECRET` | Secret JWT admin ≥ 64 octets en Base64 (éphémère si absent en dev) |
-| `ALGORAND_DEPLOYER_MNEMONIC` | Mnemonic 25 mots du compte déployeur de l'app `1014` |
+| `ALGORAND_DEPLOYER_MNEMONIC` | Mnemonic 25 mots du compte déployeur de l'app `1032` |
 
 Exemple de génération (PowerShell) :
 
@@ -75,7 +75,7 @@ $env:IOT_AUTH_ADMIN_JWT_SECRET="$(openssl rand -base64 64)"
 $env:IOT_AUTH_GATEWAY_SHARED_SECRET="$(openssl rand -hex 32)"
 $env:IOT_AUTH_ADMIN_BOOTSTRAP_PASSWORD="<12 caractères minimum>"
 $env:ALGORAND_DEPLOYER_MNEMONIC="<mnemonic-du-compte-déployeur>"
-$env:ALGORAND_APP_ID="1014"
+$env:ALGORAND_APP_ID="1032"
 .\mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 

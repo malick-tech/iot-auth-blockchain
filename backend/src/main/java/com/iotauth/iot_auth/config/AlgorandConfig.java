@@ -48,7 +48,7 @@ public class AlgorandConfig {
             }
             throw new IllegalStateException(
                 "ALGORAND_DEPLOYER_MNEMONIC est obligatoire pour le profil local. "
-                    + "Il doit correspondre au compte admin du contrat Algorand (application 1014). "
+                    + "Il doit correspondre au compte admin du contrat Algorand (application 1032). "
                     + "Definissez la variable dans le terminal avant de demarrer Spring Boot."
             );
         }
