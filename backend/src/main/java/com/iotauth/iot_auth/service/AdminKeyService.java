@@ -68,6 +68,8 @@ public class AdminKeyService {
         this.publicKeyBase32 = CryptoUtils.encodeBase32(this.publicKeyBytes);
         this.adminDid = CryptoUtils.buildDid(this.publicKeyBase32, algorandAppId, algorandNetwork);
         log.info("Admin DID initialise : {}", this.adminDid);
+        // Cle publique (non secrete) a epingler cote gateway : variable IOT_AUTH_ISSUER_PUBLIC_KEY.
+        log.info("Cle publique Issuer (base32) : {}", this.publicKeyBase32);
     }
 
     public String sign(String payload) {

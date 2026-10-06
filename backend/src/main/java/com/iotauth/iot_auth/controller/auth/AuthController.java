@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthenticationService authenticationService;
+    private final com.iotauth.iot_auth.service.RateLimitService rateLimitService;
 
     /**
      * Authenticates a device by verifying its Verifiable Presentation (VP).
@@ -56,6 +57,7 @@ public class AuthController {
     @PostMapping(path = "/challenge/{did}")
     @ResponseStatus(HttpStatus.OK)
     public ResponseEntity<ChallengeResponse> requestChallenge(@PathVariable String did) {
+        rateLimitService.requireAllowed("challenge", did);
         log.info("Challenge de renouvellement demandé pour DID: {}", did);
         ChallengeResponse response = authenticationService.issueRenewalChallenge(did);
         return ResponseEntity.ok(response);
@@ -66,6 +68,7 @@ public class AuthController {
     public ResponseEntity<JwtPopResponse> authenticate(
             @Valid @RequestBody VPRequest request
     ) {
+        rateLimitService.requireAllowed("auth", request.getDid());
         log.info("Authentication request received for DID: {}", request.getDid());
         try {
             JwtPopResponse response = authenticationService.authenticateDevice(request);

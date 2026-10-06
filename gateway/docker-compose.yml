@@ -23,3 +23,7 @@ services:
       - GATEWAY_SHARED_SECRET=${IOT_AUTH_GATEWAY_SHARED_SECRET:?IOT_AUTH_GATEWAY_SHARED_SECRET doit etre defini (voir .env.example)}
       - REDIS_GATEWAY_USERNAME=gateway
       - REDIS_GATEWAY_PASSWORD=${REDIS_GATEWAY_PASSWORD:?REDIS_GATEWAY_PASSWORD doit etre defini (voir .env.example)}
+      # Cle publique de l'Issuer EPINGLEE : si definie, la gateway verifie les JWT contre elle et
+      # ignore la cle presente dans l'entree Redis (une ecriture Redis ne suffit alors plus a faire
+      # accepter un JWT forge). Valeur affichee par le backend au demarrage ("Cle publique Issuer").
+      - ISSUER_PUBLIC_KEY=${IOT_AUTH_ISSUER_PUBLIC_KEY:-}

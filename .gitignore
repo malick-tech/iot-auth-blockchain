@@ -60,5 +60,11 @@ logs/
 .DS_Store
 Thumbs.db
 
+# Scripts de démarrage dev locaux (contiennent des secrets)
+backend/start-dev.ps1
+start-dev.ps1
+start-dev.sh
+
+
 # Benchmark results (générés, ne pas commiter)
 experiments/results/

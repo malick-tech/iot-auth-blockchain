@@ -20,9 +20,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class OperationalController {
 
     private final OperationalVerificationService operationalVerificationService;
+    private final com.iotauth.iot_auth.service.RateLimitService rateLimitService;
 
     @PostMapping(path = "/verify", consumes = MediaType.APPLICATION_JSON_VALUE)
     public OperationalVerifyResponse verify(@Valid @RequestBody OperationalVerifyRequest request) {
+        // Chemin cache MISS : quota par DID (le MISS est censé rester rare, ~1 / TTL Redis).
+        rateLimitService.requireAllowed("operational", request.getDid());
         return operationalVerificationService.verify(request);
     }
 

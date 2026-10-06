@@ -2,27 +2,27 @@
 txn ApplicationID
 int 0
 ==
-bnz main_l50
+bnz main_l54
 txn OnCompletion
 int DeleteApplication
 ==
-bnz main_l49
+bnz main_l53
 txn OnCompletion
 int UpdateApplication
 ==
-bnz main_l48
+bnz main_l52
 txna ApplicationArgs 0
 byte "PUBLISH_DID"
 ==
-bnz main_l29
+bnz main_l33
 txna ApplicationArgs 0
 byte "UPDATE_STATUS"
 ==
-bnz main_l28
+bnz main_l30
 txna ApplicationArgs 0
 method "publish_did(byte[32],uint64,string)void"
 ==
-bnz main_l9
+bnz main_l11
 txna ApplicationArgs 0
 method "update_status(byte[32],uint8)void"
 ==
@@ -67,15 +67,22 @@ int 16
 int 1
 box_extract
 byte 0x02
-!=
-assert
+==
+bnz main_l10
+main_l9:
 txna ApplicationArgs 1
 int 16
 txna ApplicationArgs 2
 box_replace
 int 1
 return
-main_l9:
+main_l10:
+txna ApplicationArgs 2
+byte 0x02
+==
+assert
+b main_l9
+main_l11:
 txn Sender
 byte "admin"
 app_global_get
@@ -100,15 +107,15 @@ box_len
 store 1
 store 0
 load 1
-bnz main_l27
-main_l10:
+bnz main_l29
+main_l12:
 txna ApplicationArgs 1
 box_len
 store 3
 store 2
 load 3
-bnz main_l26
-main_l11:
+bnz main_l28
+main_l13:
 txna ApplicationArgs 1
 txna ApplicationArgs 2
 txna ApplicationArgs 2
@@ -118,9 +125,9 @@ concat
 txna ApplicationArgs 0
 method "publish_did(byte[32],uint64,string)void"
 ==
-bnz main_l25
+bnz main_l27
 txna ApplicationArgs 3
-main_l13:
+main_l15:
 len
 itob
 concat
@@ -137,9 +144,9 @@ concat
 txna ApplicationArgs 0
 method "publish_did(byte[32],uint64,string)void"
 ==
-bnz main_l24
+bnz main_l26
 txna ApplicationArgs 3
-main_l15:
+main_l17:
 len
 itob
 concat
@@ -149,15 +156,15 @@ box_len
 store 5
 store 4
 load 5
-bnz main_l23
-main_l16:
+bnz main_l25
+main_l18:
 txna ApplicationArgs 2
 txna ApplicationArgs 0
 method "publish_did(byte[32],uint64,string)void"
 ==
-bnz main_l22
+bnz main_l24
 txna ApplicationArgs 3
-main_l18:
+main_l20:
 len
 box_create
 assert
@@ -166,35 +173,21 @@ int 0
 txna ApplicationArgs 0
 method "publish_did(byte[32],uint64,string)void"
 ==
-bnz main_l21
+bnz main_l23
 txna ApplicationArgs 3
-main_l20:
+main_l22:
 box_replace
 int 1
 return
-main_l21:
-txna ApplicationArgs 3
-int 2
-txna ApplicationArgs 3
-len
-int 2
--
-extract3
-b main_l20
-main_l22:
-txna ApplicationArgs 3
-int 2
-txna ApplicationArgs 3
-len
-int 2
--
-extract3
-b main_l18
 main_l23:
-txna ApplicationArgs 2
-box_del
-pop
-b main_l16
+txna ApplicationArgs 3
+int 2
+txna ApplicationArgs 3
+len
+int 2
+-
+extract3
+b main_l22
 main_l24:
 txna ApplicationArgs 3
 int 2
@@ -203,8 +196,13 @@ len
 int 2
 -
 extract3
-b main_l15
+b main_l20
 main_l25:
+txna ApplicationArgs 2
+box_del
+pop
+b main_l18
+main_l26:
 txna ApplicationArgs 3
 int 2
 txna ApplicationArgs 3
@@ -212,13 +210,22 @@ len
 int 2
 -
 extract3
-b main_l13
-main_l26:
+b main_l17
+main_l27:
+txna ApplicationArgs 3
+int 2
+txna ApplicationArgs 3
+len
+int 2
+-
+extract3
+b main_l15
+main_l28:
 txna ApplicationArgs 1
 box_del
 pop
-b main_l11
-main_l27:
+b main_l13
+main_l29:
 txna ApplicationArgs 1
 int 16
 int 1
@@ -226,8 +233,8 @@ box_extract
 byte 0x02
 !=
 assert
-b main_l10
-main_l28:
+b main_l12
+main_l30:
 txn Sender
 byte "admin"
 app_global_get
@@ -266,15 +273,22 @@ int 16
 int 1
 box_extract
 byte 0x02
-!=
-assert
+==
+bnz main_l32
+main_l31:
 txna ApplicationArgs 1
 int 16
 txna ApplicationArgs 2
 box_replace
 int 1
 return
-main_l29:
+main_l32:
+txna ApplicationArgs 2
+byte 0x02
+==
+assert
+b main_l31
+main_l33:
 txn Sender
 byte "admin"
 app_global_get
@@ -299,15 +313,15 @@ box_len
 store 1
 store 0
 load 1
-bnz main_l47
-main_l30:
+bnz main_l51
+main_l34:
 txna ApplicationArgs 1
 box_len
 store 3
 store 2
 load 3
-bnz main_l46
-main_l31:
+bnz main_l50
+main_l35:
 txna ApplicationArgs 1
 txna ApplicationArgs 2
 txna ApplicationArgs 2
@@ -317,9 +331,9 @@ concat
 txna ApplicationArgs 0
 method "publish_did(byte[32],uint64,string)void"
 ==
-bnz main_l45
+bnz main_l49
 txna ApplicationArgs 3
-main_l33:
+main_l37:
 len
 itob
 concat
@@ -336,9 +350,9 @@ concat
 txna ApplicationArgs 0
 method "publish_did(byte[32],uint64,string)void"
 ==
-bnz main_l44
+bnz main_l48
 txna ApplicationArgs 3
-main_l35:
+main_l39:
 len
 itob
 concat
@@ -348,15 +362,15 @@ box_len
 store 5
 store 4
 load 5
-bnz main_l43
-main_l36:
+bnz main_l47
+main_l40:
 txna ApplicationArgs 2
 txna ApplicationArgs 0
 method "publish_did(byte[32],uint64,string)void"
 ==
-bnz main_l42
+bnz main_l46
 txna ApplicationArgs 3
-main_l38:
+main_l42:
 len
 box_create
 assert
@@ -365,44 +379,12 @@ int 0
 txna ApplicationArgs 0
 method "publish_did(byte[32],uint64,string)void"
 ==
-bnz main_l41
+bnz main_l45
 txna ApplicationArgs 3
-main_l40:
+main_l44:
 box_replace
 int 1
 return
-main_l41:
-txna ApplicationArgs 3
-int 2
-txna ApplicationArgs 3
-len
-int 2
--
-extract3
-b main_l40
-main_l42:
-txna ApplicationArgs 3
-int 2
-txna ApplicationArgs 3
-len
-int 2
--
-extract3
-b main_l38
-main_l43:
-txna ApplicationArgs 2
-box_del
-pop
-b main_l36
-main_l44:
-txna ApplicationArgs 3
-int 2
-txna ApplicationArgs 3
-len
-int 2
--
-extract3
-b main_l35
 main_l45:
 txna ApplicationArgs 3
 int 2
@@ -411,13 +393,45 @@ len
 int 2
 -
 extract3
-b main_l33
+b main_l44
 main_l46:
+txna ApplicationArgs 3
+int 2
+txna ApplicationArgs 3
+len
+int 2
+-
+extract3
+b main_l42
+main_l47:
+txna ApplicationArgs 2
+box_del
+pop
+b main_l40
+main_l48:
+txna ApplicationArgs 3
+int 2
+txna ApplicationArgs 3
+len
+int 2
+-
+extract3
+b main_l39
+main_l49:
+txna ApplicationArgs 3
+int 2
+txna ApplicationArgs 3
+len
+int 2
+-
+extract3
+b main_l37
+main_l50:
 txna ApplicationArgs 1
 box_del
 pop
-b main_l31
-main_l47:
+b main_l35
+main_l51:
 txna ApplicationArgs 1
 int 16
 int 1
@@ -425,14 +439,14 @@ box_extract
 byte 0x02
 !=
 assert
-b main_l30
-main_l48:
+b main_l34
+main_l52:
 int 0
 return
-main_l49:
+main_l53:
 int 0
 return
-main_l50:
+main_l54:
 byte "admin"
 txn Sender
 app_global_put

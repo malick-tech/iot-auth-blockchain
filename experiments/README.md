@@ -57,3 +57,32 @@ Le runner produit :
 Ces fichiers peuvent être importes dans Excel ou LibreOffice pour produire les graphiques du chapitre 5.
 
 Le benchmark mesure le trafic operationnel. L'enrôlement et la publication du DID sur Algorand doivent etre mesures dans une campagne separee, car ils ne sont pas executes a chaque message IoT.
+
+---
+
+## Protocole de mesure v2
+
+Corrige les défauts de la v1 (attente par `time.sleep(0.01)` : granularité de 10 ms ; `SUBSCRIBE` chronométré ;
+30 mesures par scénario ; pas d'intervalle de confiance ni de test).
+
+| Élément | v1 | v2 |
+|---|---|---|
+| Attente de la réponse | sondage `sleep(0.01)` | `threading.Event`, horodatage dans le callback d'arrivée |
+| Abonnement MQTT | à chaque requête, dans la zone chronométrée | une fois, SUBACK attendu |
+| Échauffement | aucun | `warmup_requests` requêtes exclues par scénario |
+| Ordre | scénarios en séquence | blocs entrelacés, ordre randomisé (`seed`) |
+| Échantillon | 30 × 3 | `requests_per_block` × `repetitions` = 1 000 par scénario (défaut) |
+| Étalon de transport | aucun | `mqtt_echo_floor` (client → broker → client) |
+| Statistiques | moyenne, p50/p95/p99 | médiane + IC 95 % bootstrap, p95, Mann-Whitney U, taille d'effet, réduction relative de médiane + IC |
+| Échecs | mêlés aux latences | exclus des latences, listés dans `benchmark_failures.csv` |
+
+**Prérequis** : `IOT_AUTH_RATE_LIMIT_ENABLED=false` pour le backend pendant la mesure, sinon les requêtes sont rejetées en 429.
+La configuration mesurée diffère alors de la production : à écrire dans le chapitre 5.
+
+**Précaution `TCP_NODELAY`.** Sur un banc à délais connus, un cache HIT injecté à 2 ms était mesuré à
+~44 ms avec Mosquitto par défaut (Nagle + ACK retardé de TCP), et à ~2,6 ms avec `set_tcp_nodelay true`.
+`gateway/mosquitto/mosquitto.conf` l'active désormais. Si vos mesures HIT affichent un plancher proche de 40 ms
+(ou ~200 ms sous Windows), vérifiez ce point avant toute interprétation.
+
+Sorties : `benchmark_raw.csv`, `benchmark_summary.csv`, `benchmark_comparisons.csv`, `benchmark_failures.csv`,
+`benchmark_meta.json` (machine, version, graine, limites).

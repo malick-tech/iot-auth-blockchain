@@ -11,6 +11,8 @@ Usage : place ce script dans gateway/ (à côté de test_gateway_hit.py) et lanc
 ou adapte BASE_URL/POSTGRES_CONTAINER si besoin.
 """
 import base64
+import hashlib
+import hmac
 import json
 import subprocess
 import time
