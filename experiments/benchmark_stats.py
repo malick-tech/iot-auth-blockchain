@@ -9,10 +9,18 @@ seule base de deux moyennes. On fournit :
   - une taille d'effet (corrélation bisériale par rangs) ;
   - la réduction relative de médiane entre deux scénarios, avec son IC bootstrap.
 
-Les latences sont des séries temporelles potentiellement autocorrélées (JIT, GC,
-cache) : le bootstrap ci-dessous suppose des observations échangeables. Le benchmark
-atténue ce biais par un échauffement et un entrelacement des scénarios, mais ne
-l'élimine pas ; cette limite doit figurer dans le chapitre 5.
+Les latences sont des séries temporelles autocorrélées (JIT, GC, cache) : un bootstrap
+« à plat » sur les 1 000 observations suppose à tort qu'elles sont indépendantes et
+donne des IC trop étroits. La v3 ajoute donc :
+
+  - un bootstrap PAR BLOCS (les répétitions sont les unités rééchantillonnées) ;
+  - un test de permutation par retournement de signe sur les médianes par répétition
+    (les scénarios sont entrelacés : chaque répétition fournit une paire naturelle) ;
+  - la correction de Holm pour les comparaisons multiples ;
+  - l'autocorrélation d'ordre 1 et la taille d'échantillon effective.
+
+Mann-Whitney sur observations brutes est conservé à titre descriptif (taille d'effet) ;
+sa p-value ne doit pas être citée seule dans le chapitre 5.
 """
 
 from __future__ import annotations
@@ -121,20 +129,145 @@ def median_reduction_percent(
     return point, percentile(estimates, alpha), percentile(estimates, 1 - alpha)
 
 
-def summarize(values: list[float]) -> dict:
-    """Résumé descriptif d'une série de latences (ms)."""
-    ci_low, ci_high = bootstrap_median_ci(values)
+def lag1_autocorrelation(values: list[float]) -> float:
+    """Autocorrélation d'ordre 1 d'une série ordonnée dans le temps."""
+    n = len(values)
+    if n < 3:
+        return 0.0
+    mean = sum(values) / n
+    denom = sum((v - mean) ** 2 for v in values)
+    if denom == 0:
+        return 0.0
+    return sum((values[i] - mean) * (values[i + 1] - mean) for i in range(n - 1)) / denom
+
+
+def effective_sample_size(values: list[float]) -> float:
+    """n_eff = n (1 - r) / (1 + r) pour un AR(1) ; borné à [1, n]."""
+    n = len(values)
+    r = max(min(lag1_autocorrelation(values), 0.99), 0.0)
+    return max(1.0, min(float(n), n * (1 - r) / (1 + r)))
+
+
+def cluster_bootstrap_median_ci(
+    groups: list[list[float]], resamples: int = 2000, confidence: float = 0.95, seed: int = 12345
+) -> tuple[float, float]:
+    """IC bootstrap de la médiane globale en rééchantillonnant les BLOCS (répétitions)."""
+    groups = [g for g in groups if g]
+    if len(groups) < 2:
+        v = median(groups[0]) if groups else 0.0
+        return v, v
+    rng = random.Random(seed)
+    k = len(groups)
+    estimates = []
+    for _ in range(resamples):
+        pooled: list[float] = []
+        for g in rng.choices(groups, k=k):
+            pooled.extend(g)
+        estimates.append(median(pooled))
+    estimates.sort()
+    alpha = (1 - confidence) / 2
+    return percentile(estimates, alpha), percentile(estimates, 1 - alpha)
+
+
+def paired_cluster_reduction_percent(
+    fast_by_rep: dict[int, list[float]], slow_by_rep: dict[int, list[float]],
+    resamples: int = 2000, confidence: float = 0.95, seed: int = 54321,
+) -> tuple[float, float, float, int]:
+    """Réduction relative de médiane 100 * (1 - med(fast)/med(slow)), IC par bootstrap de
+    blocs APPARIÉS : une même répétition est tirée pour les deux scénarios.
+
+    Retourne (estimation, borne basse, borne haute, nombre de répétitions appariées).
+    """
+    reps = sorted(set(fast_by_rep) & set(slow_by_rep))
+    if len(reps) < 2:
+        raise ValueError("Au moins 2 répétitions appariées sont nécessaires")
+    flat_f = [v for r in reps for v in fast_by_rep[r]]
+    flat_s = [v for r in reps for v in slow_by_rep[r]]
+    point = 100 * (1 - median(flat_f) / median(flat_s))
+    rng = random.Random(seed)
+    estimates = []
+    for _ in range(resamples):
+        drawn = rng.choices(reps, k=len(reps))
+        f = [v for r in drawn for v in fast_by_rep[r]]
+        s = [v for r in drawn for v in slow_by_rep[r]]
+        estimates.append(100 * (1 - median(f) / median(s)))
+    estimates.sort()
+    alpha = (1 - confidence) / 2
+    return point, percentile(estimates, alpha), percentile(estimates, 1 - alpha), len(reps)
+
+
+def paired_sign_flip_test(
+    fast_by_rep: dict[int, list[float]], slow_by_rep: dict[int, list[float]],
+    permutations: int = 20000, seed: int = 777,
+) -> dict:
+    """Test de permutation par retournement de signe sur d_r = med_slow(r) - med_fast(r).
+
+    H0 : la distribution des différences par répétition est symétrique autour de 0.
+    Exact (2^k) si k <= 16, sinon Monte-Carlo. Retourne la différence moyenne des médianes
+    par répétition, la p-value bilatérale et le nombre de répétitions k.
+    """
+    reps = sorted(set(fast_by_rep) & set(slow_by_rep))
+    diffs = [median(slow_by_rep[r]) - median(fast_by_rep[r]) for r in reps]
+    k = len(diffs)
+    if k < 2:
+        raise ValueError("Au moins 2 répétitions appariées sont nécessaires")
+    observed = abs(sum(diffs) / k)
+    count = total = 0
+    if k <= 16:
+        for mask in range(1 << k):
+            s = sum(d if (mask >> i) & 1 else -d for i, d in enumerate(diffs)) / k
+            total += 1
+            count += abs(s) >= observed - 1e-12
+    else:
+        rng = random.Random(seed)
+        for _ in range(permutations):
+            s = sum(d if rng.random() < 0.5 else -d for d in diffs) / k
+            total += 1
+            count += abs(s) >= observed - 1e-12
+        count += 1
+        total += 1  # estimateur sans biais de la p-value Monte-Carlo
+    return {"mean_diff_ms": sum(diffs) / k, "p_value": count / total, "k": k,
+            "n_positive": sum(d > 0 for d in diffs)}
+
+
+def holm_adjust(p_values: list[float]) -> list[float]:
+    """Correction de Holm-Bonferroni (p-values ajustées, ordre d'origine conservé)."""
+    m = len(p_values)
+    order = sorted(range(m), key=lambda i: p_values[i])
+    adjusted = [0.0] * m
+    running = 0.0
+    for rank, i in enumerate(order):
+        running = max(running, min(1.0, (m - rank) * p_values[i]))
+        adjusted[i] = running
+    return adjusted
+
+
+def summarize(values: list[float], groups: list[list[float]] | None = None) -> dict:
+    """Résumé descriptif d'une série de latences (ms), dans l'ordre temporel.
+
+    Si `groups` (une liste de latences par répétition) est fourni, l'IC de la médiane
+    est calculé par bootstrap de blocs ; l'IC « à plat » est conservé à titre indicatif.
+    """
+    flat_low, flat_high = bootstrap_median_ci(values)
     mean = sum(values) / len(values)
     variance = sum((v - mean) ** 2 for v in values) / (len(values) - 1) if len(values) > 1 else 0.0
-    return {
+    out = {
         "n": len(values),
         "mean_ms": round(mean, 3),
         "std_ms": round(math.sqrt(variance), 3),
         "median_ms": round(median(values), 3),
-        "median_ci95_low_ms": round(ci_low, 3),
-        "median_ci95_high_ms": round(ci_high, 3),
+        "median_ci95_low_ms": round(flat_low, 3),
+        "median_ci95_high_ms": round(flat_high, 3),
         "p95_ms": round(percentile(values, 0.95), 3),
         "p99_ms": round(percentile(values, 0.99), 3),
         "min_ms": round(min(values), 3),
         "max_ms": round(max(values), 3),
+        "lag1_autocorr": round(lag1_autocorrelation(values), 3),
+        "n_effective": round(effective_sample_size(values), 1),
     }
+    if groups and len([g for g in groups if g]) >= 2:
+        lo, hi = cluster_bootstrap_median_ci(groups)
+        out["median_block_ci95_low_ms"] = round(lo, 3)
+        out["median_block_ci95_high_ms"] = round(hi, 3)
+        out["n_blocks"] = len([g for g in groups if g])
+    return out
