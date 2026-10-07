@@ -49,7 +49,7 @@ def run(cmd, cwd, log_path: Path | None = None, check=True) -> None:
         with open(log_path, "w", encoding="utf-8", errors="replace") as stream:
             proc = subprocess.run(cmd, cwd=cwd, stdout=stream, stderr=subprocess.STDOUT)
     else:
-        proc = subprocess.run(cmd, cwd=cwd)
+        proc = subprocess.run(cmd, cwd=cwd, shell=(os.name == "nt"))
     if check and proc.returncode != 0:
         raise RuntimeError(f"Commande échouée ({proc.returncode}): {cmd[0]}")
 
@@ -215,7 +215,11 @@ def main() -> int:
         if backend_process is not None and backend_process.poll() is None and not args.keep_backend:
             print("\nArrêt du backend Spring Boot...")
             try:
-                backend_process.terminate()
+                if os.name == "nt":
+                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(backend_process.pid)],
+                                   capture_output=True)
+                else:
+                    backend_process.terminate()
                 backend_process.wait(timeout=10)
             except Exception:  # noqa: BLE001
                 backend_process.kill()
