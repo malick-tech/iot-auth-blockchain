@@ -1,6 +1,6 @@
 {
   "backend_url": "http://localhost:8083",
-  "mqtt_host": "127.0.0.1",
+  "mqtt_host": "localhost",
   "mqtt_port": 1883,
   "app_id": 1032,
   "gateway_timeout_seconds": 20,

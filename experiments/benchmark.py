@@ -36,7 +36,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "devices"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from benchmark_stats import mann_whitney_u, median_reduction_percent, summarize  # noqa: E402
+from benchmark_stats import (  # noqa: E402
+    holm_adjust,
+    mann_whitney_u,
+    paired_cluster_reduction_percent,
+    paired_sign_flip_test,
+    summarize,
+)
 from device_simulator import (  # noqa: E402
     decode_jwt_payload,
     hash_metrics_json,
@@ -275,11 +281,19 @@ def write_results(output_dir: Path, rows: list[dict], failures: list[dict], conf
         writer.writerows(rows)
 
     ok_latencies: dict[str, list[float]] = {}
+    ok_by_rep: dict[str, dict[int, list[float]]] = {}
     summaries = []
     for scenario in sorted({r["scenario"] for r in rows}):
-        selected = [r for r in rows if r["scenario"] == scenario]
+        # Ordre temporel conserve (repetition, sequence) : requis pour l'autocorrelation.
+        selected = sorted((r for r in rows if r["scenario"] == scenario),
+                          key=lambda r: (int(r["repetition"]), int(r["sequence"])))
         good = [float(r["latency_ms"]) for r in selected if int(r["success"])]
         ok_latencies[scenario] = good
+        by_rep: dict[int, list[float]] = {}
+        for r in selected:
+            if int(r["success"]):
+                by_rep.setdefault(int(r["repetition"]), []).append(float(r["latency_ms"]))
+        ok_by_rep[scenario] = by_rep
         entry: dict = {
             "scenario": scenario,
             "requests": len(selected),
@@ -287,7 +301,7 @@ def write_results(output_dir: Path, rows: list[dict], failures: list[dict], conf
             "success_rate_percent": round(len(good) * 100 / len(selected), 2),
         }
         if len(good) >= 2:
-            entry.update(summarize(good))
+            entry.update(summarize(good, [by_rep[k] for k in sorted(by_rep)]))
             entry["p99_reliable"] = int(len(good) >= 1000)
         summaries.append(entry)
     fieldnames = sorted(
@@ -299,31 +313,54 @@ def write_results(output_dir: Path, rows: list[dict], failures: list[dict], conf
         writer.writeheader()
         writer.writerows(summaries)
 
+    # Comparaisons : IC par bootstrap de blocs apparies (une repetition = une unite), test de
+    # permutation par retournement de signe sur les medianes par repetition, puis correction
+    # de Holm. Mann-Whitney sur observations brutes = descriptif (taille d'effet) seulement.
+    # Convention : reduction > 0 => `fast` est reellement plus rapide que `slow` ;
+    # reduction < 0 => l'hypothese de gain est INFIRMEE (fast est plus lent).
     comparisons = []
     for fast, slow in COMPARISONS:
         a, b = ok_latencies.get(fast, []), ok_latencies.get(slow, [])
-        if len(a) < 20 or len(b) < 20:
+        fa, sb = ok_by_rep.get(fast, {}), ok_by_rep.get(slow, {})
+        if len(a) < 20 or len(b) < 20 or len(set(fa) & set(sb)) < 5:
             continue
-        red, lo, hi = median_reduction_percent(a, b)
+        red, lo, hi, k = paired_cluster_reduction_percent(fa, sb)
+        perm = paired_sign_flip_test(fa, sb)
         test = mann_whitney_u(a, b)
         comparisons.append({
-            "fast": fast, "slow": slow, "n_fast": len(a), "n_slow": len(b),
+            "fast": fast, "slow": slow, "n_fast": len(a), "n_slow": len(b), "n_blocks": k,
             "median_reduction_percent": round(red, 2),
-            "reduction_ci95_low": round(lo, 2), "reduction_ci95_high": round(hi, 2),
-            "mann_whitney_u": round(test["u"], 1), "p_value": f"{test['p_value']:.3e}",
+            "reduction_block_ci95_low": round(lo, 2), "reduction_block_ci95_high": round(hi, 2),
+            "mean_block_diff_ms": round(perm["mean_diff_ms"], 3),
+            "blocks_slow_gt_fast": perm["n_positive"],
+            "p_permutation": perm["p_value"],
+            "mann_whitney_u": round(test["u"], 1),
+            "p_mann_whitney_descriptive": f"{test['p_value']:.3e}",
             "rank_biserial": round(test["rank_biserial"], 3),
         })
+    if comparisons:
+        adjusted = holm_adjust([c["p_permutation"] for c in comparisons])
+        for c, p_adj in zip(comparisons, adjusted):
+            c["p_permutation_holm"] = round(p_adj, 5)
+            c["p_permutation"] = round(c["p_permutation"], 5)
+            c["gain_supported"] = int(c["reduction_block_ci95_low"] > 0 and p_adj < 0.05)
     if comparisons:
         with (output_dir / "benchmark_comparisons.csv").open("w", newline="", encoding="utf-8") as stream:
             writer = csv.DictWriter(stream, fieldnames=comparisons[0].keys())
             writer.writeheader()
             writer.writerows(comparisons)
 
+    # Toujours ecrire/supprimer : un ancien benchmark_failures.csv ne doit jamais survivre a
+    # une campagne propre (sinon il contredit benchmark_summary.csv).
+    failures_path = output_dir / "benchmark_failures.csv"
     if failures:
-        with (output_dir / "benchmark_failures.csv").open("w", newline="", encoding="utf-8") as stream:
+        with failures_path.open("w", newline="", encoding="utf-8") as stream:
             writer = csv.DictWriter(stream, fieldnames=failures[0].keys())
             writer.writeheader()
             writer.writerows(failures)
+    elif failures_path.exists():
+        failures_path.unlink()
+        print("Ancien benchmark_failures.csv supprime (aucun echec dans cette campagne).")
 
     try:
         commit = subprocess.run(
@@ -346,7 +383,7 @@ def write_results(output_dir: Path, rows: list[dict], failures: list[dict], conf
         "config": config,
         "limites": [
             "Un seul dispositif, requetes sequentielles : latence a vide, pas de debit.",
-            "Observations supposees echangeables : autocorrelation (JIT, GC) non eliminee.",
+            "Observations autocorrelees (JIT, GC) : IC par bootstrap de blocs (repetitions) et test de permutation sur medianes par repetition ; n efficace dans benchmark_summary.csv.",
             "Benchmark execute avec rate limiting desactive.",
             "Clock/reseau locaux (loopback) : non representatif d'un reseau IoT reel.",
             "TCP_NODELAY active cote client de benchmark ; Mosquitto/Node-RED non verifies par ce script.",
