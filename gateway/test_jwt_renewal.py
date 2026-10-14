@@ -17,8 +17,14 @@ import json
 import subprocess
 import time
 
+import os
+import sys
+
 import nacl.signing
 import requests
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "devices"))
+import w3c_di  # noqa: E402
 
 BASE_URL = "http://localhost:8083"
 APP_ID = 1032
@@ -126,19 +132,20 @@ def test_renewal(signing_key, did):
     )
     nonce = challenge["nonce"]
 
-    vp = json.dumps({
-        "@context": ["https://www.w3.org/2018/credentials/v1"],
-        "type": "VerifiablePresentation",
-        "verifiableCredential": [credential],
-    })
-
-    signature = sign_b64url(signing_key, nonce + vp)
+    from datetime import datetime, timezone
+    vp = w3c_di.secure_presentation(
+        holder_did=did,
+        credential=credential,
+        signing_key=signing_key,
+        challenge=nonce,
+        domain=challenge["domain"],
+        created=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    )
 
     check(requests.post(f"{BASE_URL}/api/v1/auth/authenticate", json={
         "did": did,
         "verifiablePresentation": vp,
         "challenge": nonce,
-        "signature": signature,
     }), "Renouvellement JWT (authenticate)")
 
 

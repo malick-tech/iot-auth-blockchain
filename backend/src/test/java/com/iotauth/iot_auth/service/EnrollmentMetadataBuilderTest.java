@@ -6,6 +6,7 @@ import com.iotauth.iot_auth.domain.entity.Device;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -16,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class EnrollmentMetadataBuilderTest {
 
     private static final String DID = "did:algo:custom:app:1001:aabbccdd";
-    private static final String PUBLIC_KEY = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    private static final String PUBLIC_KEY = com.iotauth.iot_auth.util.CryptoUtils.encodeBase32(new byte[32]);
 
     @Test
     void didDocumentNeContientAucuneMetadonneeDeDispositif() throws Exception {
@@ -38,6 +39,11 @@ class EnrollmentMetadataBuilderTest {
 
         JsonNode json = new ObjectMapper().readTree(document);
         assertEquals(DID, json.get("id").asText());
-        assertTrue(document.contains(PUBLIC_KEY));
+        assertEquals("Multikey", json.get("verificationMethod").get(0).get("type").asText());
+        String multibase = json.get("verificationMethod").get(0).get("publicKeyMultibase").asText();
+        assertTrue(multibase.startsWith("z6Mk"));
+        assertArrayEquals(new byte[32], com.iotauth.iot_auth.util.Multibase.publicKeyFromMultikey(multibase));
+        assertFalse(json.has("publicKey"), "pas de propriete non standard");
+        assertFalse(document.contains("publicKeyBase32"));
     }
 }

@@ -127,11 +127,11 @@ public class AuthenticationService {
         }
         redisService.deleteNonce(request.getDid());
 
-        // 3. Vérifier la signature VP avec la clé publique du dispositif (signature sur challenge + VP)
+        // 3. Vérifier la signature VP avec la clé publique du dispositif (preuve Data Integrity authentication, challenge et domain signes)
         boolean vpValid = vpVerificationService.verifyPresentation(
                 request.getVerifiablePresentation(),
                 request.getChallenge(),
-                request.getSignature(),
+                request.getDid(),
                 device.getPublicKey()
         );
 
@@ -320,6 +320,7 @@ public class AuthenticationService {
                 .nonce(nonce)
                 .did(did)
                 .expiresIn(nonceTtl)
+                .domain(vpVerificationService.getExpectedDomain())
                 .build();
     }
 

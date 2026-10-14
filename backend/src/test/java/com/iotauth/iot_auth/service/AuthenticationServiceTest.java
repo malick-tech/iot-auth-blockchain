@@ -55,7 +55,6 @@ class AuthenticationServiceTest {
     private static final String DID = "did:algo:DEVICE";
     private static final String CHALLENGE = "test-nonce-123";
     private static final String VP = "{\"type\":\"VerifiablePresentation\",\"verifiableCredential\":[{\"id\":\"vc-001\"}]}";
-    private static final String SIGNATURE = "base64sig";
     private static final String ADMIN_DID = "did:algo:ADMIN";
 
     @BeforeEach
@@ -184,7 +183,7 @@ class AuthenticationServiceTest {
         Device device = activeDevice();
         when(deviceRepository.findByDid(DID)).thenReturn(Optional.of(device));
         when(redisService.getNonce(DID)).thenReturn(CHALLENGE);
-        when(vpVerificationService.verifyPresentation(VP, CHALLENGE, SIGNATURE, device.getPublicKey()))
+        when(vpVerificationService.verifyPresentation(VP, CHALLENGE, DID, device.getPublicKey()))
                 .thenReturn(false);
 
         assertThatThrownBy(() -> service.authenticateDevice(vpRequest()))
@@ -199,7 +198,7 @@ class AuthenticationServiceTest {
         Device device = activeDevice();
         when(deviceRepository.findByDid(DID)).thenReturn(Optional.of(device));
         when(redisService.getNonce(DID)).thenReturn(CHALLENGE);
-        when(vpVerificationService.verifyPresentation(VP, CHALLENGE, SIGNATURE, device.getPublicKey()))
+        when(vpVerificationService.verifyPresentation(VP, CHALLENGE, DID, device.getPublicKey()))
                 .thenReturn(true);
         when(vpVerificationService.extractVcIdFromPresentation(VP)).thenReturn("vc-001");
         when(vcRepository.findByVcId("vc-001")).thenReturn(Optional.empty());
@@ -217,7 +216,7 @@ class AuthenticationServiceTest {
 
         when(deviceRepository.findByDid(DID)).thenReturn(Optional.of(device));
         when(redisService.getNonce(DID)).thenReturn(CHALLENGE);
-        when(vpVerificationService.verifyPresentation(VP, CHALLENGE, SIGNATURE, device.getPublicKey()))
+        when(vpVerificationService.verifyPresentation(VP, CHALLENGE, DID, device.getPublicKey()))
                 .thenReturn(true);
         when(vpVerificationService.extractVcIdFromPresentation(VP)).thenReturn("vc-001");
         when(vcRepository.findByVcId("vc-001")).thenReturn(Optional.of(vc));
@@ -237,7 +236,7 @@ class AuthenticationServiceTest {
 
         when(deviceRepository.findByDid(DID)).thenReturn(Optional.of(device));
         when(redisService.getNonce(DID)).thenReturn(CHALLENGE);
-        when(vpVerificationService.verifyPresentation(VP, CHALLENGE, SIGNATURE, device.getPublicKey()))
+        when(vpVerificationService.verifyPresentation(VP, CHALLENGE, DID, device.getPublicKey()))
                 .thenReturn(true);
         when(vpVerificationService.extractVcIdFromPresentation(VP)).thenReturn("vc-001");
         when(vcRepository.findByVcId("vc-001")).thenReturn(Optional.of(vc));
@@ -257,7 +256,7 @@ class AuthenticationServiceTest {
 
         when(deviceRepository.findByDid(DID)).thenReturn(Optional.of(device));
         when(redisService.getNonce(DID)).thenReturn(CHALLENGE);
-        when(vpVerificationService.verifyPresentation(VP, CHALLENGE, SIGNATURE, device.getPublicKey()))
+        when(vpVerificationService.verifyPresentation(VP, CHALLENGE, DID, device.getPublicKey()))
                 .thenReturn(true);
         when(vpVerificationService.extractVcIdFromPresentation(VP)).thenReturn("vc-001");
         when(vcRepository.findByVcId("vc-001")).thenReturn(Optional.of(vc));
@@ -277,7 +276,7 @@ class AuthenticationServiceTest {
 
         when(deviceRepository.findByDid(DID)).thenReturn(Optional.of(device));
         when(redisService.getNonce(DID)).thenReturn(CHALLENGE);
-        when(vpVerificationService.verifyPresentation(VP, CHALLENGE, SIGNATURE, device.getPublicKey()))
+        when(vpVerificationService.verifyPresentation(VP, CHALLENGE, DID, device.getPublicKey()))
                 .thenReturn(true);
         when(vpVerificationService.extractVcIdFromPresentation(VP)).thenReturn("vc-001");
         when(vcRepository.findByVcId("vc-001")).thenReturn(Optional.of(vc));
@@ -299,7 +298,7 @@ class AuthenticationServiceTest {
 
         when(deviceRepository.findByDid(DID)).thenReturn(Optional.of(device));
         when(redisService.getNonce(DID)).thenReturn(CHALLENGE);
-        when(vpVerificationService.verifyPresentation(VP, CHALLENGE, SIGNATURE, device.getPublicKey()))
+        when(vpVerificationService.verifyPresentation(VP, CHALLENGE, DID, device.getPublicKey()))
                 .thenReturn(true);
         when(vpVerificationService.extractVcIdFromPresentation(VP)).thenReturn("vc-001");
         when(vcRepository.findByVcId("vc-001")).thenReturn(Optional.of(vc));
@@ -322,7 +321,7 @@ class AuthenticationServiceTest {
 
         when(deviceRepository.findByDid(DID)).thenReturn(Optional.of(device));
         when(redisService.getNonce(DID)).thenReturn(CHALLENGE);
-        when(vpVerificationService.verifyPresentation(VP, CHALLENGE, SIGNATURE, device.getPublicKey()))
+        when(vpVerificationService.verifyPresentation(VP, CHALLENGE, DID, device.getPublicKey()))
                 .thenReturn(true);
         when(vpVerificationService.extractVcIdFromPresentation(VP)).thenReturn("vc-001");
         when(vcRepository.findByVcId("vc-001")).thenReturn(Optional.of(vc));
@@ -346,7 +345,7 @@ class AuthenticationServiceTest {
 
         when(deviceRepository.findByDid(DID)).thenReturn(Optional.of(device));
         when(redisService.getNonce(DID)).thenReturn(CHALLENGE);
-        when(vpVerificationService.verifyPresentation(VP, CHALLENGE, SIGNATURE, device.getPublicKey()))
+        when(vpVerificationService.verifyPresentation(VP, CHALLENGE, DID, device.getPublicKey()))
                 .thenReturn(true);
         when(vpVerificationService.extractVcIdFromPresentation(VP)).thenReturn("vc-001");
         when(vcRepository.findByVcId("vc-001")).thenReturn(Optional.of(vc));
@@ -402,7 +401,6 @@ class AuthenticationServiceTest {
         req.setDid(DID);
         req.setVerifiablePresentation(VP);
         req.setChallenge(CHALLENGE);
-        req.setSignature(SIGNATURE);
         return req;
     }
 }

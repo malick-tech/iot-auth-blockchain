@@ -40,6 +40,10 @@ public interface DeviceRepository extends JpaRepository<Device, Long> {
 
     List<Device> findByStatus(DeviceStatus status);
 
+    /** Plus grand index de Bitstring Status List deja attribue (-1 si aucun). */
+    @Query("select coalesce(max(d.statusListIndex), -1) from Device d")
+    int findMaxStatusListIndex();
+
     /**
      * Dispositifs REVOKED dont la révocation n'a pas encore été ancrée sur
      * Algorand (échec ou timeout de la soumission initiale). Utilisé par le

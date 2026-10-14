@@ -9,4 +9,6 @@ public class ChallengeResponse {
     private String nonce;
     private String did;
     private long expiresIn;
+    /** Valeur a recopier dans le champ "domain" de la preuve de la VP (liaison au verificateur). */
+    private String domain;
 }
