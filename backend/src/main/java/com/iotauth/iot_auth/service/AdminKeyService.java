@@ -72,6 +72,16 @@ public class AdminKeyService {
         log.info("Cle publique Issuer (base32) : {}", this.publicKeyBase32);
     }
 
+    /** Identifiant de la methode de verification de l'Issuer dans son DID Document ("{did}#key-1"). */
+    public String getVerificationMethod() {
+        return adminDid + "#key-1";
+    }
+
+    /** Signature Ed25519 brute (64 octets), utilisee par les preuves Data Integrity. */
+    public byte[] signBytes(byte[] payload) {
+        return CryptoUtils.signEd25519Bytes(this.privateKeyBytes, payload);
+    }
+
     public String sign(String payload) {
         return CryptoUtils.signEd25519(this.privateKeyBytes, payload);
     }

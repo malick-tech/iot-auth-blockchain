@@ -48,6 +48,10 @@ public class Device {
     @Enumerated(EnumType.STRING)
     private DeviceStatus status;
 
+    /** Position du dispositif dans les Bitstring Status Lists (revocation et suspension). Attribuee a l'emission du VC. */
+    @Column(unique = true)
+    private Integer statusListIndex;
+
     private String algorandTxId;
     private String deviceType;
     private String location;

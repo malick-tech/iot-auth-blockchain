@@ -83,7 +83,7 @@ public class JwtService {
     }
 
     private String base64EncodePublicKey(String publicKeyBase32) {
-        return CryptoUtils.encodeBase64Standard(CryptoUtils.decodeBase32(publicKeyBase32));
+        return CryptoUtils.encodeBase64(CryptoUtils.decodeBase32(publicKeyBase32));
     }
 
     /**

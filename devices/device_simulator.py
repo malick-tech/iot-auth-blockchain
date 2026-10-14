@@ -11,6 +11,9 @@ import uuid
 from pathlib import Path
 
 import nacl.signing
+from datetime import datetime, timezone
+
+import w3c_di
 import paho.mqtt.client as mqtt
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
@@ -310,23 +313,28 @@ def update_auth_state(state: dict, jwt_response: dict) -> None:
     state["expiresAt"] = jwt_response.get("expiresAt")
 
 
-def build_verifiable_presentation(state: dict) -> str:
-    credential = state.get("verifiableCredential")
-    if credential:
-        try:
-            credential = json.loads(credential)
-        except json.JSONDecodeError:
-            pass
-    else:
-        credential = {"id": state["credentialId"]}
+def build_verifiable_presentation(state: dict, signing_key: nacl.signing.SigningKey, challenge: dict) -> str:
+    """VP (VC Data Model 2.0) signee par une preuve Data Integrity eddsa-jcs-2022.
 
-    return json.dumps(
-        {
-            "@context": ["https://www.w3.org/2018/credentials/v1"],
-            "type": "VerifiablePresentation",
-            "verifiableCredential": [credential],
-        },
-        separators=(",", ":"),
+    proofPurpose = authentication ; `challenge` = nonce du backend ; `domain` = domaine fourni
+    par le backend dans la reponse au challenge. Ces champs sont couverts par la signature.
+    """
+    credential = state.get("verifiableCredential")
+    if not credential:
+        raise RuntimeError("Aucun VC complet dans l'etat du dispositif : la VP doit embarquer le VC signe")
+    if isinstance(credential, str):
+        credential = json.loads(credential)
+    domain = challenge.get("domain")
+    if not domain:
+        raise RuntimeError("La reponse au challenge ne contient pas de domain")
+    created = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return w3c_di.secure_presentation(
+        holder_did=state["did"],
+        credential=credential,
+        signing_key=signing_key,
+        challenge=challenge["nonce"],
+        domain=domain,
+        created=created,
     )
 
 
@@ -338,8 +346,7 @@ def renew_jwt(state: dict, gateway: GatewayRpcClient, master_key: bytes) -> None
         {"did": state["did"]},
         "auth-challenge",
     )
-    vp = build_verifiable_presentation(state)
-    signature = sign_b64url(signing_key, challenge["nonce"] + vp)
+    vp = build_verifiable_presentation(state, signing_key, challenge)
     jwt_response = gateway.request(
         f"iot/{state['did']}/auth/authenticate/request",
         f"iot/{state['did']}/auth/authenticate/response",
@@ -347,7 +354,6 @@ def renew_jwt(state: dict, gateway: GatewayRpcClient, master_key: bytes) -> None
             "did": state["did"],
             "verifiablePresentation": vp,
             "challenge": challenge["nonce"],
-            "signature": signature,
         },
         "authenticate",
     )

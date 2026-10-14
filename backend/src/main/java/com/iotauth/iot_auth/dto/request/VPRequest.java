@@ -14,7 +14,4 @@ public class VPRequest {
 
     @NotBlank
     private String challenge;
-
-    @NotBlank
-    private String signature;
 }

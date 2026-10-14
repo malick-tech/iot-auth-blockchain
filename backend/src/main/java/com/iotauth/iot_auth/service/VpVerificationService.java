@@ -2,6 +2,9 @@ package com.iotauth.iot_auth.service;
 
 import com.iotauth.iot_auth.exception.InvalidSignatureException;
 import com.iotauth.iot_auth.util.CryptoUtils;
+import com.iotauth.iot_auth.util.DataIntegrity;
+import com.fasterxml.jackson.core.type.TypeReference;
+import org.springframework.beans.factory.annotation.Value;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -9,6 +12,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -17,24 +22,32 @@ public class VpVerificationService {
 
     private final ObjectMapper objectMapper;
 
+    @Value("${iot.auth.vp-domain:iot-auth-backend}")
+    private String expectedDomain;
+
+    /** Valeur du champ "domain" que la preuve de la VP doit porter (publiee dans la reponse au challenge). */
+    public String getExpectedDomain() {
+        return expectedDomain;
+    }
+
     /**
-     * Vérifie une Verifiable Presentation en validant sa signature Ed25519.
+     * Verifie une Verifiable Presentation (VC Data Model 2.0) protegee par une preuve Data Integrity
+     * {@code eddsa-jcs-2022} : proofPurpose {@code authentication}, verificationMethod {@code {holderDid}#key-1},
+     * {@code challenge} egal au nonce emis par le serveur, {@code domain} egal au domaine attendu.
+     * <p>
+     * La fraicheur et la liaison au verificateur sont donc portees par la preuve elle-meme (elles sont
+     * signees avec le document), et non plus par une signature separee sur "challenge + VP".
      *
-     * Le nonce (challenge) est concaténé au contenu de la VP avant vérification
-     * de signature : cela garantit la fraîcheur de la preuve de possession
-     * (le dispositif ne peut pas rejouer une VP+signature interceptées sans
-     * connaître le nonce courant émis par le serveur).
-     *
-     * @param verifiablePresentation JSON de la VP
-     * @param challenge              nonce émis par le serveur pour cette session de renouvellement
-     * @param signature              signature Ed25519 en Base64 sur (challenge + verifiablePresentation)
-     * @param publicKeyBase32        clé publique du dispositif en Base32
-     * @return true si la signature est valide
+     * @param verifiablePresentation JSON de la VP, preuve incluse
+     * @param challenge              nonce emis par le serveur pour cette session de renouvellement
+     * @param holderDid              DID du dispositif authentifie
+     * @param publicKeyBase32        cle publique du dispositif en Base32
+     * @return true si la structure et la preuve sont valides
      */
     public boolean verifyPresentation(
             String verifiablePresentation,
             String challenge,
-            String signature,
+            String holderDid,
             String publicKeyBase32
     ) {
         if (verifiablePresentation == null || verifiablePresentation.isBlank()) {
@@ -47,21 +60,32 @@ public class VpVerificationService {
         }
 
         try {
-            // Vérification de signature Ed25519 sur challenge || VP
-            String signedMessage = challenge + verifiablePresentation;
-            boolean isValid = CryptoUtils.verifyEd25519(
-                    publicKeyBase32,
-                    signedMessage,
-                    signature
-            );
-
-            if (!isValid) {
-                log.warn("Echec de vérification de la signature VP");
+            Map<String, Object> vp = objectMapper.readValue(verifiablePresentation, new TypeReference<Map<String, Object>>() {});
+            Object context = vp.get("@context");
+            Object type = vp.get("type");
+            if (!(context instanceof List<?> c) || c.isEmpty() || !VcService.VC_CONTEXT_V2.equals(c.get(0))
+                    || !(type instanceof List<?> t) || !t.contains("VerifiablePresentation")) {
+                log.warn("Structure de VP non conforme (VC Data Model 2.0)");
+                return false;
             }
-
-            return isValid;
+            if (!holderDid.equals(vp.get("holder"))) {
+                log.warn("holder de la VP different du DID authentifie");
+                return false;
+            }
+            byte[] publicKey = CryptoUtils.decodeBase32(publicKeyBase32);
+            DataIntegrity.verify(
+                    vp,
+                    (data, signature) -> CryptoUtils.verifyEd25519Bytes(publicKey, data, signature),
+                    "authentication",
+                    holderDid + "#key-1",
+                    challenge,
+                    expectedDomain);
+            return true;
+        } catch (DataIntegrity.ProofException e) {
+            log.warn("Echec de verification de la preuve de la VP : {}", e.getMessage());
+            return false;
         } catch (Exception e) {
-            log.error("Erreur lors de la vérification de la VP: {}", e.getMessage(), e);
+            log.error("Erreur lors de la verification de la VP: {}", e.getMessage(), e);
             return false;
         }
     }

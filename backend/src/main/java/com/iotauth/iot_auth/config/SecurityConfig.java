@@ -31,7 +31,7 @@ public class SecurityConfig {
                         // Documentation OpenAPI / Swagger
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         // Endpoints IoT publics (protégés par rate-limit + cryptographie)
-                        .requestMatchers("/api/v1/enrollment/**", "/api/v1/auth/**", "/api/v1/operational/**").permitAll()
+                        .requestMatchers("/api/v1/enrollment/**", "/api/v1/auth/**", "/api/v1/operational/**", "/api/v1/status-lists/**").permitAll()
                         // Login et logout admin : publics (le token est absent ou non valide à ce stade)
                         .requestMatchers("/api/v1/admin/auth/login", "/api/v1/admin/auth/logout").permitAll()
                         // Toutes les autres routes admin exigent ROLE_ADMIN positionné par AdminAuthFilter.
